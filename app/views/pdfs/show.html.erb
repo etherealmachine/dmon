@@ -1,0 +1,81 @@
+<% content_for :navbar_center do %>
+  <h1 class="text-xl font-bold text-white"><%= @pdf.name %></h1>
+<% end %>
+
+<div class="max-w-6xl mx-auto p-8">
+  <!-- Back to Game Link -->
+  <div class="mb-6">
+    <%= link_to "← Back to Game", game_path(@game), class: "text-blue-600 hover:text-blue-800 font-medium" %>
+  </div>
+
+  <!-- PDF Info Card -->
+  <div class="bg-white rounded-lg shadow-md p-6 mb-6">
+    <div class="flex justify-between items-start mb-4">
+      <h2 class="text-2xl font-bold"><%= @pdf.name %></h2>
+      <div class="flex gap-2">
+        <%= button_to "Reparse PDF", reparse_game_pdf_path(@game, @pdf),
+            method: :post,
+            class: "bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded font-medium text-sm transition-colors",
+            data: { turbo_confirm: "This will re-extract and refine the text content. Continue?" } %>
+        <%= button_to "Reclassify Images", reclassify_images_game_pdf_path(@game, @pdf),
+            method: :post,
+            class: "bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded font-medium text-sm transition-colors",
+            data: { turbo_confirm: "This will re-extract and reclassify all images. Continue?" } %>
+      </div>
+    </div>
+
+    <% if @pdf.description.present? %>
+      <div class="mb-4">
+        <h3 class="text-lg font-semibold mb-2">Description</h3>
+        <p class="text-gray-700"><%= @pdf.description %></p>
+      </div>
+    <% end %>
+
+    <div class="text-sm text-gray-500">
+      <p>Created: <%= @pdf.created_at.strftime("%B %d, %Y at %I:%M %p") %></p>
+    </div>
+  </div>
+
+  <!-- Text Content -->
+  <% if @pdf.text_content.present? %>
+    <div class="bg-white rounded-lg shadow-md p-6 mb-6">
+      <h3 class="text-lg font-semibold mb-4">Text Content</h3>
+      <div class="prose prose-sm max-w-none text-gray-700 whitespace-pre-wrap font-mono text-xs bg-gray-50 p-4 rounded border border-gray-200 max-h-96 overflow-y-auto">
+<%= @pdf.text_content %>
+      </div>
+    </div>
+  <% end %>
+
+  <!-- Images Grid -->
+  <% if @pdf.images.any? %>
+    <div class="bg-white rounded-lg shadow-md p-6">
+      <h3 class="text-lg font-semibold mb-4">Images (<%= @pdf.images.count %>)</h3>
+      <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+        <% @pdf.images.each do |image| %>
+          <div class="border border-gray-200 rounded-lg overflow-hidden hover:shadow-lg transition-shadow">
+            <%= image_tag image, class: "w-full h-48 object-cover" %>
+            <div class="p-3 bg-gray-50">
+              <% if image.blob.metadata['classification'].present? %>
+                <div class="mb-2">
+                  <span class="inline-block px-2 py-1 text-xs font-semibold rounded bg-blue-100 text-blue-800">
+                    <%= image.blob.metadata['classification'] %>
+                  </span>
+                  <% if image.blob.metadata['should_delete'] %>
+                    <span class="inline-block px-2 py-1 text-xs font-semibold rounded bg-red-100 text-red-800">
+                      to delete
+                    </span>
+                  <% end %>
+                </div>
+              <% end %>
+              <% if image.blob.metadata['description'].present? %>
+                <p class="text-xs text-gray-600 line-clamp-3"><%= image.blob.metadata['description'] %></p>
+              <% else %>
+                <p class="text-xs text-gray-400 italic">No description available</p>
+              <% end %>
+            </div>
+          </div>
+        <% end %>
+      </div>
+    </div>
+  <% end %>
+</div>

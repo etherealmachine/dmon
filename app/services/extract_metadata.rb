@@ -1,0 +1,87 @@
+class ExtractMetadata
+  def initialize(pdf, api_key: nil)
+    @pdf = pdf
+    @api_key = api_key || ENV['OPENAI_API_KEY']
+    @client = @api_key ? OpenAI::Client.new(access_token: @api_key) : nil
+  end
+
+  def call
+    raise "OpenAI API key not configured" unless @client
+    raise "No parsed PDF attached" unless @pdf.parsed_pdf.attached?
+
+    extract_metadata
+  end
+
+  private
+
+  def extract_metadata
+    # Use OpenAI to analyze and extract metadata
+    parsed = analyze_with_openai(@pdf.text_content)
+
+    # Update the adventure with extracted metadata
+    @pdf.update(
+      name: parsed[:title],
+      description: parsed[:description]
+    )
+
+    Rails.logger.info "Extracted metadata for PDF ##{@pdf.id}: #{parsed[:title]}"
+  end
+
+  def analyze_with_openai(text_content)
+    response = @client.chat(
+      parameters: {
+        model: "gpt-5-nano",
+        messages: [
+          {
+            role: "user",
+            content: metadata_extraction_prompt(text_content)
+          }
+        ],
+      }
+    )
+
+    content = response.dig("choices", 0, "message", "content") || ""
+    parse_metadata_response(content)
+  end
+
+  def metadata_extraction_prompt(text_content)
+    <<~PROMPT
+      You are analyzing text extracted from a tabletop RPG PDF.
+
+      Your task is to extract:
+      1. A clean, concise title for the PDF
+      2. A compelling 2-3 sentence description that would entice players
+
+      Guidelines for TITLE:
+      - Remove extraneous credits, author names, and level ranges
+      - Keep the core PDF name
+      - Make it clean and readable
+      - Example: "An Adventure for 4-6 Characters Levels 0-1 TREASURE HUNT by Aaron Allston" → "Treasure Hunt"
+
+      Guidelines for DESCRIPTION:
+      - Write 2-3 sentences that capture the essence and hook of the PDF
+      - Focus on what makes it interesting and unique
+      - Be engaging and evocative
+      - Avoid technical details like "for a DM and 4-6 characters"
+      - Make it sound exciting!
+
+      Here is the extracted text from the PDF:
+
+      #{text_content}
+
+      Respond in this exact format:
+      TITLE: [clean PDF title]
+      DESCRIPTION: [2-3 sentence compelling description]
+    PROMPT
+  end
+
+  def parse_metadata_response(content)
+    title = content.match(/TITLE:\s*(.+?)$/i)&.captures&.first&.strip || 'Untitled PDF'
+    description = content.match(/DESCRIPTION:\s*(.+?)$/mi)&.captures&.first&.strip || ''
+
+    {
+      title: title,
+      description: description
+    }
+  end
+end

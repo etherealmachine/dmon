@@ -1,0 +1,271 @@
+<% content_for :navbar_center do %>
+  <h1 class="text-xl font-bold text-white"><%= @game.pdfs.first.name %></h1>
+<% end %>
+
+<div class="flex h-[calc(100vh-4rem)]">
+  <!-- Main Panel -->
+  <div class="flex-1 overflow-y-auto p-8 bg-gray-50">
+      <div class="max-w-4xl mx-auto">
+        <!-- PDFs Grid -->
+        <% if @game.pdfs.any? %>
+          <div class="mb-6">
+            <h3 class="text-lg font-semibold mb-3">Game PDFs</h3>
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              <% @game.pdfs.each do |pdf| %>
+                <%= link_to game_pdf_path(@game, pdf), class: "block bg-white rounded-lg shadow hover:shadow-lg transition-shadow p-4 border border-gray-200" do %>
+                  <div class="flex items-start space-x-3">
+                    <!-- PDF Icon -->
+                    <div class="flex-shrink-0 w-12 h-12 bg-red-100 rounded-lg flex items-center justify-center">
+                      <svg class="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"></path>
+                      </svg>
+                    </div>
+
+                    <!-- PDF Info -->
+                    <div class="flex-1 min-w-0">
+                      <h4 class="text-sm font-semibold text-gray-900 truncate mb-1">
+                        <%= pdf.name %>
+                      </h4>
+                      <% if pdf.description.present? %>
+                        <p class="text-xs text-gray-600 line-clamp-2">
+                          <%= pdf.description %>
+                        </p>
+                      <% end %>
+                      <% if pdf.images.any? %>
+                        <p class="text-xs text-gray-500 mt-1">
+                          <%= pdf.images.count %> images
+                        </p>
+                      <% end %>
+                    </div>
+                  </div>
+                <% end %>
+              <% end %>
+            </div>
+          </div>
+        <% end %>
+
+        <!-- Game Notes -->
+        <div class="bg-white rounded-lg shadow p-6">
+          <div class="flex items-center justify-between mb-4">
+            <h3 class="text-lg font-semibold">Game Notes</h3>
+            <button onclick="document.getElementById('new-note-form').classList.toggle('hidden')" class="bg-green-500 hover:bg-green-600 text-white text-sm font-medium py-2 px-4 rounded-lg transition-colors">
+              + New Note
+            </button>
+          </div>
+
+          <!-- New Note Form -->
+          <div id="new-note-form" class="hidden mb-6 p-4 border border-gray-200 rounded-lg bg-gray-50">
+            <%= form_with(model: [@game, @game.game_notes.build], class: "space-y-3") do |f| %>
+              <div>
+                <%= f.label :note_type, "Note Type", class: "block text-sm font-medium text-gray-700 mb-1" %>
+                <%= f.select :note_type,
+                    GameNote.note_types,
+                    {},
+                    class: "w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent text-sm" %>
+              </div>
+              <div>
+                <%= f.label :content, "Note Content", class: "block text-sm font-medium text-gray-700 mb-1" %>
+                <%= f.text_area :content,
+                    placeholder: "Your note content (supports markdown)...",
+                    rows: 6,
+                    class: "w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent resize-none text-sm" %>
+              </div>
+              <div class="flex gap-2">
+                <%= f.submit "Create Note", class: "bg-green-500 hover:bg-green-600 text-white font-medium py-2 px-4 rounded-lg transition-colors cursor-pointer" %>
+                <button type="button" onclick="document.getElementById('new-note-form').classList.add('hidden')" class="bg-gray-300 hover:bg-gray-400 text-gray-700 font-medium py-2 px-4 rounded-lg transition-colors">
+                  Cancel
+                </button>
+              </div>
+            <% end %>
+          </div>
+
+          <% if @game.game_notes.any? %>
+            <div class="space-y-4">
+              <% @game.game_notes.chronological.each do |note| %>
+                <div class="border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow">
+                  <!-- Note View -->
+                  <div id="note-view-<%= note.id %>">
+                    <div class="flex items-center justify-between mb-2">
+                      <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium <%= note.note_type == 'chat' ? 'bg-blue-100 text-blue-800' : 'bg-green-100 text-green-800' %>">
+                        <%= note.note_type %>
+                      </span>
+                      <div class="flex items-center gap-2">
+                        <span class="text-xs text-gray-500">
+                          <%= note.created_at.strftime("%b %d, %I:%M %p") %>
+                        </span>
+                        <button onclick="document.getElementById('note-view-<%= note.id %>').classList.add('hidden'); document.getElementById('note-edit-<%= note.id %>').classList.remove('hidden');" class="text-xs text-blue-600 hover:text-blue-800 font-medium">
+                          Edit
+                        </button>
+                        <%= button_to "Delete", game_game_note_path(@game, note), method: :delete, data: { confirm: "Are you sure?" }, class: "flex text-xs text-red-600 hover:text-red-800 font-medium" %>
+                      </div>
+                    </div>
+
+                    <div>
+                      <div class="text-sm text-gray-900 prose prose-sm max-w-none">
+                        <%= markdown(note.content) %>
+                      </div>
+                    </div>
+
+                    <% if note.stats.present? %>
+                      <div class="mt-4 pt-4 border-t border-gray-200">
+                        <div class="text-xs font-medium text-gray-500 uppercase mb-2">Stats</div>
+                        <div class="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                          <% note.stats.each do |key, value| %>
+                            <div class="p-2 bg-blue-50 rounded border border-blue-200">
+                              <div class="text-xs text-gray-600 mb-0.5"><%= key %></div>
+                              <div class="text-lg font-semibold text-gray-900"><%= value %></div>
+                            </div>
+                          <% end %>
+                        </div>
+                      </div>
+                    <% end %>
+
+                    <% if note.actions.present? %>
+                      <div class="mt-4 pt-4 border-t border-gray-200">
+                        <div class="text-xs font-medium text-gray-500 uppercase mb-2">Actions</div>
+                        <div class="space-y-2">
+                          <% note.actions.each_with_index do |action, index| %>
+                            <div class="flex items-center justify-between p-2 bg-gray-50 rounded border border-gray-200">
+                              <div class="flex-1">
+                                <div class="text-sm font-medium text-gray-900">
+                                  <%= action['name'] || action[:name] || "Action #{index + 1}" %>
+                                </div>
+                                <% if (action['description'] || action[:description]).present? %>
+                                  <div class="text-xs text-gray-600">
+                                    <%= action['description'] || action[:description] %>
+                                  </div>
+                                <% end %>
+                                <div class="text-xs text-gray-500 mt-1">
+                                  Type: <%= action['type'] || action[:type] %>
+                                </div>
+                              </div>
+                              <%= button_to "Execute", call_action_game_game_note_path(@game, note, action_index: index),
+                                  method: :post,
+                                  class: "ml-3 bg-purple-500 hover:bg-purple-600 text-white text-xs font-medium py-1 px-3 rounded transition-colors" %>
+                            </div>
+                          <% end %>
+                        </div>
+                      </div>
+                    <% end %>
+
+                    <% if note.history.present? %>
+                      <div class="mt-4 pt-4 border-t border-gray-200">
+                        <div class="text-xs font-medium text-gray-500 uppercase mb-2">Action History</div>
+                        <div class="space-y-2">
+                          <% note.history.each_with_index do |history_item, index| %>
+                            <div class="p-3 bg-gray-50 rounded border <%= history_item['success'] || history_item[:success] ? 'border-green-200' : 'border-red-200' %>">
+                              <div class="flex items-start justify-between mb-1">
+                                <div class="text-xs font-medium <%= history_item['success'] || history_item[:success] ? 'text-green-700' : 'text-red-700' %>">
+                                  <%= (history_item['action_name'] || history_item[:action_name] || "Action #{index + 1}").upcase %>
+                                </div>
+                                <div class="text-xs text-gray-500">
+                                  <%= Time.parse(history_item['timestamp'] || history_item[:timestamp]).strftime("%b %d, %I:%M %p") rescue "Unknown time" %>
+                                </div>
+                              </div>
+
+                              <% if (history_item['action_description'] || history_item[:action_description]).present? %>
+                                <div class="text-xs text-gray-600 mb-2">
+                                  <%= history_item['action_description'] || history_item[:action_description] %>
+                                </div>
+                              <% end %>
+
+                              <% if history_item['success'] || history_item[:success] %>
+                                <% result = history_item['result'] || history_item[:result] %>
+                                <% if result && (history_item['action_type'] || history_item[:action_type]) == 'roll' %>
+                                  <div class="text-sm font-medium text-gray-900 mb-1">
+                                    <%= result['dice_notation'] || result[:dice_notation] %>: <span class="text-green-600"><%= result['total'] || result[:total] %></span>
+                                  </div>
+                                  <div class="text-xs text-gray-600">
+                                    <%= result['breakdown'] || result[:breakdown] %>
+                                  </div>
+                                <% end %>
+                              <% else %>
+                                <div class="text-xs text-red-600">
+                                  Error: <%= history_item['error'] || history_item[:error] %>
+                                </div>
+                              <% end %>
+                            </div>
+                          <% end %>
+                        </div>
+                      </div>
+                    <% end %>
+                  </div>
+
+                  <!-- Note Edit Form -->
+                  <div id="note-edit-<%= note.id %>" class="hidden">
+                    <%= form_with(model: [@game, note], class: "space-y-3") do |f| %>
+                      <div>
+                        <%= f.label :note_type, "Note Type", class: "block text-sm font-medium text-gray-700 mb-1" %>
+                        <%= f.select :note_type,
+                            GameNote.note_types,
+                            {},
+                            class: "w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm" %>
+                      </div>
+                      <div>
+                        <%= f.label :content, "Note Content", class: "block text-sm font-medium text-gray-700 mb-1" %>
+                        <%= f.text_area :content,
+                            rows: 6,
+                            class: "w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none text-sm" %>
+                      </div>
+                      <div class="flex gap-2">
+                        <%= f.submit "Update Note", class: "bg-blue-500 hover:bg-blue-600 text-white font-medium py-2 px-4 rounded-lg transition-colors cursor-pointer" %>
+                        <button type="button" onclick="document.getElementById('note-edit-<%= note.id %>').classList.add('hidden'); document.getElementById('note-view-<%= note.id %>').classList.remove('hidden');" class="bg-gray-300 hover:bg-gray-400 text-gray-700 font-medium py-2 px-4 rounded-lg transition-colors">
+                          Cancel
+                        </button>
+                      </div>
+                    <% end %>
+                  </div>
+                </div>
+              <% end %>
+            </div>
+          <% else %>
+            <div class="text-center text-gray-500 py-8">
+              <p>No notes yet.</p>
+              <p class="text-sm mt-2">Notes created by the assistant will appear here.</p>
+            </div>
+          <% end %>
+        </div>
+      </div>
+    </div>
+
+  <!-- Sidebar -->
+  <div class="w-96 bg-white border-l border-gray-200 flex flex-col">
+    <!-- Conversation History -->
+    <div class="flex-1 overflow-y-auto p-4">
+        <h3 class="text-lg font-semibold mb-4">Conversation</h3>
+
+        <div class="space-y-3">
+          <% if @game.agent&.conversation_history&.present? %>
+            <% @game.agent.conversation_history.each do |message| %>
+              <div class="<%= message['role'] == 'user' ? 'bg-blue-50 border-blue-200' : 'bg-gray-50 border-gray-200' %> border rounded-lg p-3">
+                <div class="mb-1">
+                  <span class="text-xs font-medium <%= message['role'] == 'user' ? 'text-blue-600' : 'text-gray-600' %> uppercase">
+                    <%= message['role'] %>
+                  </span>
+                </div>
+                <div class="flex flex-col text-sm text-gray-700 whitespace-pre-wrap">
+                  <%= markdown(message['content']) %>
+                </div>
+              </div>
+            <% end %>
+          <% else %>
+            <p class="text-gray-500 text-sm text-center py-4">No messages yet. Start a conversation!</p>
+          <% end %>
+        </div>
+      </div>
+
+    <!-- Chat Input -->
+    <div class="border-t border-gray-200 p-4 flex-shrink-0">
+        <%= form_with(url: agent_game_path(@game), method: :post, class: "space-y-3") do |f| %>
+          <div>
+            <%= f.text_area :input,
+                placeholder: "Ask anything...",
+                rows: 3,
+                class: "w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none text-sm" %>
+          </div>
+          <%= f.submit "Send",
+              class: "w-full bg-blue-500 hover:bg-blue-600 text-white font-medium py-2 px-4 rounded-lg transition-colors cursor-pointer" %>
+        <% end %>
+    </div>
+  </div>
+</div>

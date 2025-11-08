@@ -1,0 +1,42 @@
+<nav class="bg-gray-800 shadow-lg">
+  <div class="max-w-full mx-auto px-4 sm:px-6 lg:px-8">
+    <div class="flex justify-between items-center h-16">
+      <!-- App Name / Logo -->
+      <div class="flex-shrink-0">
+        <%= link_to root_path, class: "flex items-center" do %>
+          <span class="text-white text-xl font-bold">DMon</span>
+        <% end %>
+      </div>
+
+      <!-- Center Content (for page-specific content like titles) -->
+      <div class="flex-1 flex justify-center items-center">
+        <% if content_for?(:navbar_center) %>
+          <%= yield :navbar_center %>
+        <% else %>
+          <!-- Default Navigation Links -->
+          <div class="hidden md:block">
+            <div class="flex items-baseline space-x-4">
+              <% if user_signed_in? %>
+                <%= link_to "New Game", new_game_path, class: "text-gray-300 hover:bg-gray-700 hover:text-white px-3 py-2 rounded-md text-sm font-medium" %>
+              <% end %>
+            </div>
+          </div>
+        <% end %>
+      </div>
+
+      <!-- Authentication Status -->
+      <div class="flex items-center">
+        <% if user_signed_in? %>
+          <div class="flex items-center space-x-4">
+            <span class="text-gray-300 text-sm">
+              <%= current_user.name %>
+            </span>
+            <%= button_to "Logout", logout_path, method: :delete, class: "bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-md text-sm font-medium transition duration-150" %>
+          </div>
+        <% else %>
+          <%= link_to "Login", login_path, class: "bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md text-sm font-medium transition duration-150" %>
+        <% end %>
+      </div>
+    </div>
+  </div>
+</nav>

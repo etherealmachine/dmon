@@ -1,0 +1,26 @@
+#!/usr/bin/env sh
+
+if ! gem list foreman -i --silent; then
+  echo "Installing foreman..."
+  gem install foreman
+fi
+
+# Default to port 3000 if not specified
+export PORT="${PORT:-3000}"
+
+# Kill any existing processes on Rails and Grobid ports
+PORTS_TO_CHECK="${PORT} 8070"
+for port in $PORTS_TO_CHECK; do
+  if lsof -ti:${port} > /dev/null 2>&1; then
+    echo "Killing existing processes on port ${port}..."
+    lsof -ti:${port} | xargs kill 2>/dev/null || true
+  fi
+done
+sleep 1
+
+# Let the debug gem allow remote connections,
+# but avoid loading until `debugger` is called
+export RUBY_DEBUG_OPEN="true"
+export RUBY_DEBUG_LAZY="true"
+
+exec foreman start -f Procfile.dev "$@"
