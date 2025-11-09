@@ -45,3 +45,6 @@
 
 # Ignore node_modules
 /node_modules
+
+# Ignore compiled TypeScript files
+/app/javascript/compiled

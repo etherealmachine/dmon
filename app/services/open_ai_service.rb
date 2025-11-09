@@ -46,11 +46,7 @@ class OpenAiService
 
     if stream && block_given?
       # Streaming mode
-      parameters[:stream] = proc { |chunk, _bytesize|
-        handle_stream_chunk(chunk, &block)
-      }
-      client.chat(parameters: parameters)
-      nil # Return nil since we're yielding chunks
+      stream_response(parameters, &block)
     else
       # Non-streaming mode
       response = client.chat(parameters: parameters)
@@ -90,41 +86,84 @@ class OpenAiService
     @client ||= OpenAI::Client.new(access_token: @api_key)
   end
 
+  # Stream a response and yield chunks as they arrive
+  # @param parameters [Hash] API request parameters
+  # @yield [Hash] Yields chunks with :type, :content, :tool_calls, etc.
+  def stream_response(parameters, &block)
+    accumulated_text = ""
+    accumulated_tool_calls = {}
+
+    yield({ type: "start" })
+
+    parameters[:stream] = proc { |chunk, _bytesize|
+      handle_stream_chunk(chunk, accumulated_text, accumulated_tool_calls, &block)
+    }
+
+    client.chat(parameters: parameters)
+
+    # Yield final complete event with accumulated data
+    result = {
+      type: "complete",
+      content: accumulated_text,
+      role: "assistant"
+    }
+
+    # Convert accumulated_tool_calls hash to array
+    if accumulated_tool_calls.any?
+      tool_calls_array = accumulated_tool_calls.values.map do |tc|
+        {
+          id: tc[:id],
+          name: tc[:name],
+          arguments: JSON.parse(tc[:arguments])
+        }
+      end
+      result[:tool_calls] = tool_calls_array
+    end
+
+    yield(result)
+  rescue StandardError => e
+    yield({ type: "error", error: e.message })
+  end
+
   # Handle streaming chunks from OpenAI
-  def handle_stream_chunk(chunk, &block)
+  def handle_stream_chunk(chunk, accumulated_text, accumulated_tool_calls, &block)
     return unless chunk
 
     # OpenAI sends "data: [DONE]" when stream is complete
     return if chunk == "[DONE]"
 
-    data = JSON.parse(chunk) rescue nil
+    # The chunk might already be parsed as a hash or might be a JSON string
+    data = chunk.is_a?(String) ? (JSON.parse(chunk) rescue nil) : chunk
     return unless data
 
     delta = data.dig("choices", 0, "delta")
     return unless delta
 
+    # Handle content
     if delta["content"]
+      accumulated_text << delta["content"]
       yield({ type: "content", content: delta["content"] })
     end
 
-    # Handle tool calls in streaming
+    # Handle tool calls in streaming - OpenAI streams them incrementally
     if delta["tool_calls"]
       delta["tool_calls"].each do |tool_call|
-        yield({
-          type: "tool_call",
-          tool_call: {
+        index = tool_call["index"]
+
+        # Initialize tool call if this is the first chunk for this index
+        if tool_call["id"]
+          accumulated_tool_calls[index] = {
             id: tool_call["id"],
             name: tool_call.dig("function", "name"),
-            arguments: tool_call.dig("function", "arguments")
+            arguments: ""
           }
-        })
-      end
-    end
+        end
 
-    # Check if stream is done
-    finish_reason = data.dig("choices", 0, "finish_reason")
-    if finish_reason
-      yield({ type: "complete", finish_reason: finish_reason })
+        # Accumulate arguments if present
+        if tool_call.dig("function", "arguments")
+          accumulated_tool_calls[index][:arguments] << tool_call.dig("function", "arguments")
+        end
+      end
     end
   rescue JSON::ParserError
     # Ignore parsing errors for partial chunks

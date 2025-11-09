@@ -2,3 +2,8 @@
 import "@hotwired/turbo-rails"
 import "controllers"
 import "channels"
+import { initializeToasts } from "components/Toast"
+
+// Initialize toasts on page load and turbo navigation
+document.addEventListener('turbo:load', initializeToasts)
+document.addEventListener('DOMContentLoaded', initializeToasts)

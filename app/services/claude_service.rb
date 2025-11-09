@@ -82,13 +82,18 @@ class ClaudeService
     stream = @client.messages.stream(**parameters)
 
     stream.each do |event|
-      case event.type
+      # Skip helper/convenience events - we only want the raw events
+      next unless event.class.name.start_with?("Anthropic::Models::Raw") || event.class.name.include?("::MessageStopEvent") || event.class.name.include?("::ContentBlockStopEvent")
+
+      event_type = event.type.to_s
+      case event_type
       when "message_start"
         # Message started
         yield({ type: "start" })
       when "content_block_start"
         # New content block started
-        if event.content_block.type == "tool_use"
+        block_type = event.content_block.type.to_s
+        if block_type == "tool_use"
           current_tool_use = {
             id: event.content_block.id,
             name: event.content_block.name,
@@ -97,11 +102,12 @@ class ClaudeService
         end
       when "content_block_delta"
         # Content chunk received
-        if event.delta.type == "text_delta"
+        delta_type = event.delta.type.to_s
+        if delta_type == "text_delta" || delta_type == "text"
           text = event.delta.text
           accumulated_text += text
           yield({ type: "content", content: text })
-        elsif event.delta.type == "input_json_delta"
+        elsif delta_type == "input_json_delta" || delta_type == "input_json"
           # Tool use input being streamed
           current_tool_use[:arguments] += event.delta.partial_json if current_tool_use
         end
