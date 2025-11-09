@@ -19,20 +19,16 @@
 
     <%# Includes all stylesheet files in app/assets/stylesheets %>
     <%= stylesheet_link_tag :app, "data-turbo-track": "reload" %>
-    <%= javascript_importmap_tags %>
+    <%= javascript_pack_tag "application" %>
   </head>
 
   <body>
     <%= render 'shared/navbar' %>
 
-    <%# Data for React toast component %>
-    <div id="toast-data"
-         data-notice="<%= notice %>"
-         data-alert="<%= alert %>"
-         style="display: none;"></div>
-
-    <%# React toast container %>
-    <div id="toast-container"></div>
+    <%# React on Rails toast component %>
+    <% if notice.present? || alert.present? %>
+      <%= react_component("Toast", props: { notice: notice, alert: alert }, prerender: false) %>
+    <% end %>
 
     <%= yield %>
   </body>

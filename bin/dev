@@ -1,26 +1,30 @@
-#!/usr/bin/env sh
+#!/usr/bin/env ruby
+# frozen_string_literal: true
 
-if ! gem list foreman -i --silent; then
-  echo "Installing foreman..."
-  gem install foreman
-fi
+def installed?(process)
+  IO.popen "#{process} -v"
+rescue Errno::ENOENT
+  false
+end
 
-# Default to port 3000 if not specified
-export PORT="${PORT:-3000}"
+def run(process)
+  system "#{process} start -f Procfile.dev"
+rescue Errno::ENOENT
+  warn <<~MSG
+    ERROR:
+    Please ensure `Procfile.dev` exists in your project!
+  MSG
+  exit!
+end
 
-# Kill any existing processes on Rails and Grobid ports
-PORTS_TO_CHECK="${PORT} 8070"
-for port in $PORTS_TO_CHECK; do
-  if lsof -ti:${port} > /dev/null 2>&1; then
-    echo "Killing existing processes on port ${port}..."
-    lsof -ti:${port} | xargs kill 2>/dev/null || true
-  fi
-done
-sleep 1
-
-# Let the debug gem allow remote connections,
-# but avoid loading until `debugger` is called
-export RUBY_DEBUG_OPEN="true"
-export RUBY_DEBUG_LAZY="true"
-
-exec foreman start -f Procfile.dev "$@"
+if installed? "overmind"
+  run "overmind"
+elsif installed? "foreman"
+  run "foreman"
+else
+  warn <<~MSG
+    NOTICE:
+    For this script to run, you need either 'overmind' or 'foreman' installed on your machine. Please try this script after installing one of them.
+  MSG
+  exit!
+end

@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { createRoot } from 'react-dom/client';
 
 interface ToastItemProps {
   message: string;
@@ -54,21 +53,4 @@ export default function Toast({ notice, alert }: ToastProps) {
       {alert && <ToastItem message={alert} type="alert" />}
     </div>
   );
-}
-
-// Initialize toast on page load
-export function initializeToasts(): void {
-  const toastData = document.getElementById('toast-data');
-  if (!toastData) return;
-
-  const notice = toastData.dataset.notice;
-  const alert = toastData.dataset.alert;
-
-  if (notice || alert) {
-    const container = document.getElementById('toast-container');
-    if (container) {
-      const root = createRoot(container);
-      root.render(<Toast notice={notice} alert={alert} />);
-    }
-  }
 }
