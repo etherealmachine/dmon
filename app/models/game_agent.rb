@@ -4,6 +4,7 @@
 #
 #  id                   :bigint           not null, primary key
 #  conversation_history :json
+#  plan                 :json
 #  created_at           :datetime         not null
 #  updated_at           :datetime         not null
 #  game_id              :bigint           not null
@@ -21,33 +22,30 @@ class GameAgent < ApplicationRecord
 
   # Initialize conversation history as empty array if nil
   after_initialize :ensure_conversation_history
+  after_initialize :ensure_plan
 
-  class Error < StandardError
-    attr_reader :original_error, :response_body
-
-    def initialize(message, original_error: nil, response_body: nil)
-      super(message)
-      @original_error = original_error
-      @response_body = response_body
-    end
-
-    def detailed_message
-      parts = [message]
-      parts << "Response body: #{response_body}" if response_body.present?
-      parts << "Original error: #{original_error.class} - #{original_error.message}" if original_error
-      parts.join("\n")
-    end
-  end
+  attr_accessor :model
+  ALLOWED_MODELS = %w[gpt-5 gpt-5-nano claude-haiku-4-5-20251001].freeze
 
   def model
-    "gpt-5-nano"
+    @model ||= ALLOWED_MODELS.first
   end
 
-  def call(input)
-    raise "OpenAI API key not configured" unless openai_client
+  def ai_service
+    if !ALLOWED_MODELS.include?(model)
+      raise "Invalid model: #{model}"
+    end
+    if model.starts_with?('claude')
+      @ai_service ||= ClaudeService.new(model: model)
+    else
+      @ai_service ||= OpenAiService.new(model: model)
+    end
+  end
 
-    # Store input for slash commands to access
+  def call(input, context_items: [], &block)
+    # Store input and context items for slash commands and context to access
     @current_input = input
+    @context_items = context_items
 
     # Check for slash commands
     if input.strip.match?(/^\/(\w+)/)
@@ -57,6 +55,7 @@ class GameAgent < ApplicationRecord
       if respond_to?(command_method, true)
         result = send(command_method)
         if result
+          yield({ type: "content", content: result.to_json }) if block_given?
           add_message(role: "assistant", content: result.to_json)
         end
         return result
@@ -66,80 +65,141 @@ class GameAgent < ApplicationRecord
 
     transaction do
       add_message(role: "user", content: input)
+      yield({ type: "user_message", content: input }) if block_given?
+
+      # Determine if we should stream
+      stream = block_given?
 
       # Make initial API call with tools
-      response = openai_client.chat(
-        parameters: {
-          model:,
-          messages: conversation_messages,
-          tools: tool_definitions,
-          tool_choice: "auto"
-        })
+      accumulated_response = { content: "", tool_calls: [] }
 
-      message = response.dig("choices", 0, "message")
+      if stream
+        # Streaming mode
+        ai_service.chat(
+          messages: conversation_history,
+          system_message: context_string,
+          tools: unified_tool_definitions,
+          stream: true
+        ) do |chunk|
+          case chunk[:type]
+          when "start"
+            yield({ type: "assistant_start" })
+          when "content"
+            accumulated_response[:content] += chunk[:content]
+            yield(chunk)
+          when "complete"
+            accumulated_response[:tool_calls] = chunk[:tool_calls] if chunk[:tool_calls]
+          when "error"
+            yield(chunk)
+            raise StandardError, chunk[:error]
+          end
+        end
+      else
+        # Non-streaming mode
+        response = ai_service.chat(
+          messages: conversation_history,
+          system_message: context_string,
+          tools: unified_tool_definitions
+        )
+        accumulated_response[:content] = response[:content] || ""
+        accumulated_response[:tool_calls] = response[:tool_calls] if response[:tool_calls]
+      end
 
       # Handle tool calls if present
-      if message["tool_calls"]
+      if accumulated_response[:tool_calls]&.any?
         # Add assistant message with tool calls to history
         add_message(
           role: "assistant",
-          content: message["content"] || "",
-          tool_calls: message["tool_calls"]
+          content: accumulated_response[:content] || "",
+          tool_calls: accumulated_response[:tool_calls].map { |tc|
+            {
+              "id" => tc[:id],
+              "type" => "function",
+              "function" => {
+                "name" => tc[:name],
+                "arguments" => tc[:arguments].to_json
+              }
+            }
+          }
         )
 
+        yield({ type: "tool_calls_start", count: accumulated_response[:tool_calls].length }) if stream
+
         # Execute each tool call
-        message["tool_calls"].each do |tool_call|
-          tool_result = execute_tool(
-            tool_call["function"]["name"],
-            JSON.parse(tool_call["function"]["arguments"])
-          )
+        accumulated_response[:tool_calls].each do |tool_call|
+          yield({ type: "tool_call", name: tool_call[:name], arguments: tool_call[:arguments] }) if stream
+
+          tool_result = execute_tool(tool_call[:name], tool_call[:arguments])
+
+          yield({ type: "tool_result", name: tool_call[:name], result: tool_result }) if stream
 
           # Add tool result to conversation history
           add_message(
             role: "tool",
             content: tool_result.to_json,
-            tool_call_id: tool_call["id"]
+            tool_call_id: tool_call[:id]
           )
         end
 
-        # Make another API call to get final response
-        final_response = openai_client.chat(
-          parameters: {
-            model:,
-            messages: conversation_messages,
-            tools: tool_definitions,
-            tool_choice: "auto"
-          })
+        yield({ type: "tool_calls_complete" }) if stream
+        yield({ type: "assistant_start" }) if stream
 
-        content = final_response.dig("choices", 0, "message", "content") || ""
-        add_message(role: "assistant", content: content)
+        # Make final API call after tool execution
+        final_accumulated = ""
+
+        if stream
+          # Stream final response
+          ai_service.chat(
+            messages: conversation_history,
+            system_message: context_string,
+            tools: unified_tool_definitions,
+            stream: true
+          ) do |chunk|
+            case chunk[:type]
+            when "content"
+              final_accumulated += chunk[:content]
+              yield(chunk)
+            when "complete"
+              # Nothing special needed here
+            when "error"
+              yield(chunk)
+              raise StandardError, chunk[:error]
+            end
+          end
+        else
+          # Non-streaming final response
+          final_response = ai_service.chat(
+            messages: conversation_history,
+            system_message: context_string,
+            tools: unified_tool_definitions
+          )
+          final_accumulated = final_response[:content] || ""
+        end
+
+        add_message(role: "assistant", content: final_accumulated)
       else
         # No tool calls, just add the response
-        content = message["content"] || ""
-        add_message(role: "assistant", content: content)
+        add_message(role: "assistant", content: accumulated_response[:content] || "")
       end
-    rescue Faraday::BadRequestError => e
-      if e.response[:body].dig("error", "message")
-        raise Error.new("OpenAI API request failed: #{e.response[:body]["error"]["message"]}")
-      else
-        raise Error.new("OpenAI API request failed: #{e.response[:body]}")
-      end
+    rescue OpenAiService::Error, ClaudeService::Error => e
+      Rails.logger.error "AI Service error: #{e.detailed_message}"
+      yield({ type: "error", error: e.detailed_message }) if block_given?
+      raise e
     end
   end
 
   def clear!
     self.conversation_history = []
+    self.plan = []
     save!
   end
 
-  def tool_definitions
+  def unified_tool_definitions
     [
       {
-        type: "function",
-        function: {
-          name: "create_game_note",
-          description: "Create a new note for this game. Use this to save important information, reminders, or observations that should be persisted. Optionally attach actions (like dice rolls) that can be executed later, or set initial stats.",
-          parameters: {
+        name: "create_game_note",
+        description: "Create a new note for this game. Use this to save important information, reminders, or observations that should be persisted. Optionally attach actions (like dice rolls) that can be executed later, or set initial stats.",
+        parameters: {
             type: "object",
             properties: {
               content: {
@@ -200,53 +260,44 @@ class GameAgent < ApplicationRecord
             },
             required: ["content", "note_type"]
           }
-        }
       },
       {
-        type: "function",
-        function: {
-          name: "search_game_notes",
-          description: "Search for game notes by keyword or filter by note type. Returns a list of matching notes with their IDs, content, and metadata.",
-          parameters: {
-            type: "object",
-            properties: {
-              query: {
-                type: "string",
-                description: "Optional search query to filter notes by content"
-              },
-              note_type: {
-                type: "string",
-                enum: GameNote.note_types.map(&:second),
-                description: "Optional filter by note type",
-              }
+        name: "search_game_notes",
+        description: "Search for game notes by keyword or filter by note type. Returns a list of matching notes with their IDs, content, and metadata.",
+        parameters: {
+          type: "object",
+          properties: {
+            query: {
+              type: "string",
+              description: "Optional search query to filter notes by content"
             },
-            required: []
-          }
+            note_type: {
+              type: "string",
+              enum: GameNote.note_types.map(&:second),
+              description: "Optional filter by note type",
+            }
+          },
+          required: []
         }
       },
       {
-        type: "function",
-        function: {
-          name: "read_game_note",
-          description: "Read the full details of a specific game note by its ID. Returns the complete note content including input, output, type, and timestamps.",
-          parameters: {
-            type: "object",
-            properties: {
-              note_id: {
-                type: "integer",
-                description: "The ID of the note to read"
-              }
-            },
-            required: ["note_id"]
-          }
+        name: "read_game_note",
+        description: "Read the full details of a specific game note by its ID. Returns the complete note content including input, output, type, and timestamps.",
+        parameters: {
+          type: "object",
+          properties: {
+            note_id: {
+              type: "integer",
+              description: "The ID of the note to read"
+            }
+          },
+          required: ["note_id"]
         }
       },
       {
-        type: "function",
-        function: {
-          name: "edit_game_note",
-          description: "Edit an existing game note by its ID. Can update the content, note type, stats, or actions fields.",
-          parameters: {
+        name: "edit_game_note",
+        description: "Edit an existing game note by its ID. Can update the content, note type, stats, or actions fields.",
+        parameters: {
             type: "object",
             properties: {
               note_id: {
@@ -311,100 +362,129 @@ class GameAgent < ApplicationRecord
             },
             required: ["note_id"]
           }
-        }
       },
       {
-        type: "function",
-        function: {
-          name: "roll_dice",
-          description: "Roll dice using standard RPG notation (e.g., '1d20', '2d6', '4d8+3'). Supports modifiers like +/- and advantage/disadvantage for d20 rolls.",
-          parameters: {
-            type: "object",
-            properties: {
-              dice_notation: {
-                type: "string",
-                description: "The dice to roll in standard notation (e.g., '1d20', '2d6', '4d8+3', '1d20+5')"
-              },
-              advantage: {
-                type: "boolean",
-                description: "For d20 rolls, roll twice and take the higher result"
-              },
-              disadvantage: {
-                type: "boolean",
-                description: "For d20 rolls, roll twice and take the lower result"
-              },
-              description: {
-                type: "string",
-                description: "Optional description of what the roll is for (e.g., 'attack roll', 'damage')"
-              }
+        name: "roll_dice",
+        description: "Roll dice using standard RPG notation (e.g., '1d20', '2d6', '4d8+3'). Supports modifiers like +/- and advantage/disadvantage for d20 rolls.",
+        parameters: {
+          type: "object",
+          properties: {
+            dice_notation: {
+              type: "string",
+              description: "The dice to roll in standard notation (e.g., '1d20', '2d6', '4d8+3', '1d20+5')"
             },
-            required: ["dice_notation"]
-          }
-        }
-      },
-      {
-        type: "function",
-        function: {
-          name: "call_note_action",
-          description: "Execute an action attached to a game note. Actions are pre-defined operations (like dice rolls) that can be triggered. The result is added to the note's action history.",
-          parameters: {
-            type: "object",
-            properties: {
-              note_id: {
-                type: "integer",
-                description: "The ID of the note containing the action"
-              },
-              action_index: {
-                type: "integer",
-                description: "The index of the action to execute (0-based, so first action is 0, second is 1, etc.)"
-              }
+            advantage: {
+              type: "boolean",
+              description: "For d20 rolls, roll twice and take the higher result"
             },
-            required: ["note_id", "action_index"]
-          }
+            disadvantage: {
+              type: "boolean",
+              description: "For d20 rolls, roll twice and take the lower result"
+            },
+            description: {
+              type: "string",
+              description: "Optional description of what the roll is for (e.g., 'attack roll', 'damage')"
+            }
+          },
+          required: ["dice_notation"]
         }
       },
       {
-        type: "function",
-        function: {
-          name: "set_note_stats",
-          description: "Set or update stats (key-value pairs) on a game note. Stats are useful for tracking numeric values like HP, AC, ability scores, or any other game-relevant data. This replaces all existing stats on the note.",
-          parameters: {
-            type: "object",
-            properties: {
-              note_id: {
-                type: "integer",
-                description: "The ID of the note to update"
-              },
-              stats: {
+        name: "call_note_action",
+        description: "Execute an action attached to a game note. Actions are pre-defined operations (like dice rolls) that can be triggered. The result is added to the note's action history.",
+        parameters: {
+          type: "object",
+          properties: {
+            note_id: {
+              type: "integer",
+              description: "The ID of the note containing the action"
+            },
+            action_index: {
+              type: "integer",
+              description: "The index of the action to execute (0-based, so first action is 0, second is 1, etc.)"
+            }
+          },
+          required: ["note_id", "action_index"]
+        }
+      },
+      {
+        name: "set_note_stats",
+        description: "Set or update stats (key-value pairs) on a game note. Stats are useful for tracking numeric values like HP, AC, ability scores, or any other game-relevant data. This replaces all existing stats on the note.",
+        parameters: {
+          type: "object",
+          properties: {
+            note_id: {
+              type: "integer",
+              description: "The ID of the note to update"
+            },
+            stats: {
+              type: "object",
+              description: "Object containing stat key-value pairs (e.g., {\"HP\": 45, \"AC\": 18, \"STR\": 16}). Values can be numbers or strings.",
+              additionalProperties: true
+            }
+          },
+          required: ["note_id", "stats"]
+        }
+      },
+      {
+        name: "update_note_stats",
+        description: "Update specific stats on a game note without replacing all stats. Only the provided stat keys will be updated or added, existing stats not mentioned will remain unchanged.",
+        parameters: {
+          type: "object",
+          properties: {
+            note_id: {
+              type: "integer",
+              description: "The ID of the note to update"
+            },
+            stats: {
+              type: "object",
+              description: "Object containing stat key-value pairs to update (e.g., {\"HP\": 30}). Values can be numbers or strings.",
+              additionalProperties: true
+            }
+          },
+          required: ["note_id", "stats"]
+        }
+      },
+      {
+        name: "update_plan",
+        description: "Update the current plan with new items or mark items as completed. This helps track progress on multi-step tasks.",
+        parameters: {
+          type: "object",
+          properties: {
+            items: {
+              type: "array",
+              description: "Array of plan items (replaces the current plan)",
+              items: {
                 type: "object",
-                description: "Object containing stat key-value pairs (e.g., {\"HP\": 45, \"AC\": 18, \"STR\": 16}). Values can be numbers or strings.",
-                additionalProperties: true
+                properties: {
+                  description: {
+                    type: "string",
+                    description: "Description of what needs to be done or what was done"
+                  },
+                  completed: {
+                    type: "boolean",
+                    description: "Whether this item is completed (true) or still pending (false)"
+                  }
+                },
+                required: ["description", "completed"]
               }
-            },
-            required: ["note_id", "stats"]
-          }
+            }
+          },
+          required: ["items"]
         }
       },
       {
-        type: "function",
-        function: {
-          name: "update_note_stats",
-          description: "Update specific stats on a game note without replacing all stats. Only the provided stat keys will be updated or added, existing stats not mentioned will remain unchanged.",
-          parameters: {
-            type: "object",
-            properties: {
-              note_id: {
-                type: "integer",
-                description: "The ID of the note to update"
-              },
-              stats: {
-                type: "object",
-                description: "Object containing stat key-value pairs to update (e.g., {\"HP\": 30}). Values can be numbers or strings.",
-                additionalProperties: true
-              }
-            },
-            required: ["note_id", "stats"]
-          }
+        name: "delete_game_note",
+        description: "Delete a game note by its ID. This permanently removes the note and cannot be undone.",
+        parameters: {
+          type: "object",
+          properties: {
+            note_id: {
+              type: "integer",
+              description: "The ID of the note to delete"
+            }
+          },
+          required: ["note_id"]
         }
       }
     ]
@@ -431,18 +511,31 @@ class GameAgent < ApplicationRecord
     { command: "roll", **result }
   end
 
-  def openai_client
-    @client ||= OpenAI::Client.new(access_token: ENV['OPENAI_API_KEY'])
-  end
-
   def ensure_conversation_history
     self.conversation_history ||= []
   end
 
-  def conversation_messages
-    [
-      { role: "system", content: system_prompt }
-    ] + context_messages + conversation_history
+  def ensure_plan
+    self.plan ||= []
+  end
+
+  def context_string
+    context_parts = context_messages.map { |msg| msg[:content] }
+    parts = [initial_prompt] + context_parts
+
+    # Add plan if it exists and is not empty
+    if plan.present? && plan.any?
+      plan_text = "## Current Plan\n\n"
+      plan.each_with_index do |item, index|
+        status = item["completed"] ? "[x]" : "[ ]"
+        plan_text += "#{index}. #{status} #{item["description"]}\n"
+      end
+      parts << plan_text
+    end
+
+    parts << final_prompt
+
+    parts.join("\n\n")
   end
 
   def add_message(role:, content:, tool_calls: nil, tool_call_id: nil)
@@ -693,19 +786,71 @@ class GameAgent < ApplicationRecord
     }
   end
 
-  def context_messages
-    game.game_notes.where(note_type: "context").map do |note|
+  def delete_game_note_tool(arguments)
+    note = game.game_notes.find_by(id: arguments["note_id"])
+
+    unless note
+      return {
+        success: false,
+        error: "Note with ID #{arguments['note_id']} not found"
+      }
+    end
+
+    note.destroy!
+
+    {
+      success: true,
+      message: "Note deleted successfully",
+      note_id: arguments["note_id"]
+    }
+  end
+
+  def update_plan_tool(arguments)
+    unless arguments["items"].is_a?(Array)
+      return {
+        success: false,
+        error: "Items must be an array"
+      }
+    end
+
+    # Normalize items to ensure they have both description and completed fields
+    plan_items = arguments["items"].map do |item|
       {
-        role: "system", content: {
-          type: "note",
-          note_id: note.id,
-          content: note.content
-        }.to_json
+        "description" => item["description"],
+        "completed" => item["completed"] || false
+      }
+    end
+
+    self.plan = plan_items
+    save!
+
+    {
+      success: true,
+      message: "Plan updated successfully",
+      plan: self.plan,
+      count: self.plan.length
+    }
+  end
+
+  def context_messages
+    # Start with context-type notes
+    context_notes = game.game_notes.where(note_type: "context")
+
+    # Add dynamically selected context items (passed via GlobalID)
+    selected_items = (@context_items || []).map do |gid|
+      GlobalID::Locator.locate(gid) rescue nil
+    end.compact
+
+    # Combine and format all context items
+    (context_notes + selected_items).uniq.map do |item|
+      {
+        role: "system",
+        content: item.context
       }
     end
   end
 
-  def system_prompt
+  def initial_prompt
     <<~PROMPT
       You are a helpful assistant for a tabletop RPG adventure module.
 
@@ -726,6 +871,16 @@ class GameAgent < ApplicationRecord
 
       Use these tools when appropriate to help the user manage their game session.
       Be helpful, accurate, and concise. If you don't know something or it's not in the adventure content, say so.
+    PROMPT
+  end
+
+  def final_prompt
+    <<~PROMPT
+      For multi-step tasks, use the update_plan tool to track progress.
+      Update the plan to show what has been completed and what remains to be done.
+      Each plan item should have:
+      - "description": A clear description of the task
+      - "completed": true if done, false if not yet done
     PROMPT
   end
 end

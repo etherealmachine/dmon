@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_11_06_170626) do
+ActiveRecord::Schema[8.0].define(version: 2025_11_09_002927) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -47,6 +47,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_11_06_170626) do
     t.json "conversation_history"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.json "plan"
     t.index ["game_id"], name: "index_game_agents_on_game_id"
   end
 

@@ -37,9 +37,41 @@ class GamesController < ApplicationController
 
   def agent
     if request.post?
-      @game.agent.call(params[:input])
-      redirect_to @game
+      # Get selected context items from params (GlobalIDs)
+      context_items = params[:context_items] || []
+
+      # Get model if provided
+      model = nil
+      if params[:model].present? && GameAgent::ALLOWED_MODELS.include?(params[:model])
+        model = params[:model]
+      end
+
+      # Queue the agent job for async processing
+      AgentCallJob.perform_later(
+        @game.id,
+        params[:input],
+        context_items: context_items,
+        model: model
+      )
+
+      # Return success response for AJAX requests
+      if request.xhr?
+        render json: { success: true, message: "Processing your request..." }
+      else
+        # Redirect back with context items to preserve checkbox state
+        redirect_to @game, context_items: context_items, notice: "Processing your request..."
+      end
     else
+      # Provide debug information for the view
+      agent = @game.agent
+      if params[:model].present? && GameAgent::ALLOWED_MODELS.include?(params[:model])
+        agent.model = params[:model]
+      end
+      @model = agent.model
+      @context_string = agent.send(:context_string)
+      @context_messages = agent.send(:context_messages)
+      @conversation_history = agent.conversation_history || []
+      @tool_definitions = agent.unified_tool_definitions
     end
   end
 

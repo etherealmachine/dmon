@@ -77,6 +77,8 @@ GEM
     annotaterb (4.19.0)
       activerecord (>= 6.0.0)
       activesupport (>= 6.0.0)
+    anthropic (1.14.0)
+      connection_pool
     apimatic_core (0.3.20)
       apimatic_core_interfaces (~> 0.2.0)
       certifi (~> 2018.1, >= 2018.01.18)
@@ -538,6 +540,7 @@ PLATFORMS
 
 DEPENDENCIES
   annotaterb
+  anthropic
   bootsnap
   brakeman
   capybara

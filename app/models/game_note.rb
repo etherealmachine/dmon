@@ -39,6 +39,20 @@ class GameNote < ApplicationRecord
     ]
   end
 
+  # Return the context representation of this note for the agent
+  # @return [String] The formatted context content
+  def context
+    parts = ["[#{note_type.upcase}]"]
+    parts << content
+
+    if stats.present?
+      stats_text = stats.map { |k, v| "#{k}: #{v}" }.join(", ")
+      parts << "Stats: #{stats_text}"
+    end
+
+    parts.join("\n")
+  end
+
   # Call an action by index
   # @param index [Integer] The index of the action to call
   # @return [Hash] The result of the action

@@ -14,7 +14,7 @@ Rails.application.routes.draw do
     resources :game_notes, only: [:create, :update, :destroy] do
       post :call_action, on: :member
     end
-    resources :pdfs, only: [:show] do
+    resources :pdfs, only: [:show, :create] do
       post :reparse, on: :member
       post :reclassify_images, on: :member
     end
