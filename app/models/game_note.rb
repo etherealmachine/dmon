@@ -79,6 +79,13 @@ class GameNote < ApplicationRecord
     result
   end
 
+  # Clear the action history
+  # @return [Boolean] true if successful
+  def clear_history
+    self.history = []
+    save
+  end
+
   private
 
   # Roll dice action

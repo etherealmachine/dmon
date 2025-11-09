@@ -4,8 +4,6 @@ class GamesController < ApplicationController
 
   def index
     @games = current_user.games.order(created_at: :desc)
-    flash.now[:notice] = 'Games were successfully loaded.'
-    flash.now[:alert] = 'Hello World'
   end
 
   def new

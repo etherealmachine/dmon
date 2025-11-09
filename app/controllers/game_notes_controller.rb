@@ -1,23 +1,31 @@
 class GameNotesController < ApplicationController
   before_action :authenticate_user!
   before_action :set_game
-  before_action :set_game_note, only: [:update, :destroy, :call_action]
+  before_action :set_game_note, only: [:update, :destroy, :call_action, :clear_history]
 
   def create
     @game_note = @game.game_notes.build(game_note_params)
 
-    if @game_note.save
-      redirect_to @game, notice: 'Note was successfully created.'
-    else
-      redirect_to @game, alert: "Unable to create note: #{@game_note.errors.full_messages.join(', ')}"
+    respond_to do |format|
+      if @game_note.save
+        format.html { redirect_to @game, notice: 'Note was successfully created.' }
+        format.json { render json: { success: true, note: note_json(@game_note) }, status: :created }
+      else
+        format.html { redirect_to @game, alert: "Unable to create note: #{@game_note.errors.full_messages.join(', ')}" }
+        format.json { render json: { success: false, errors: @game_note.errors.full_messages }, status: :unprocessable_entity }
+      end
     end
   end
 
   def update
-    if @game_note.update(game_note_params)
-      redirect_to @game, notice: 'Note was successfully updated.'
-    else
-      redirect_to @game, alert: "Unable to update note: #{@game_note.errors.full_messages.join(', ')}"
+    respond_to do |format|
+      if @game_note.update(game_note_params)
+        format.html { redirect_to @game, notice: 'Note was successfully updated.' }
+        format.json { render json: { success: true, note: note_json(@game_note) } }
+      else
+        format.html { redirect_to @game, alert: "Unable to update note: #{@game_note.errors.full_messages.join(', ')}" }
+        format.json { render json: { success: false, errors: @game_note.errors.full_messages }, status: :unprocessable_entity }
+      end
     end
   end
 
@@ -30,10 +38,26 @@ class GameNotesController < ApplicationController
     action_index = params[:action_index].to_i
     result = @game_note.call_action(action_index)
 
-    if result[:success]
-      redirect_to @game, notice: "Action executed successfully."
-    else
-      redirect_to @game, alert: "Action failed: #{result[:error]}"
+    respond_to do |format|
+      if result[:success]
+        format.html { redirect_to @game, notice: "Action executed successfully." }
+        format.json { render json: { success: true, note: note_json(@game_note) } }
+      else
+        format.html { redirect_to @game, alert: "Action failed: #{result[:error]}" }
+        format.json { render json: { success: false, error: result[:error] }, status: :unprocessable_entity }
+      end
+    end
+  end
+
+  def clear_history
+    respond_to do |format|
+      if @game_note.clear_history
+        format.html { redirect_to @game, notice: "History cleared successfully." }
+        format.json { render json: { success: true, note: note_json(@game_note) } }
+      else
+        format.html { redirect_to @game, alert: "Failed to clear history." }
+        format.json { render json: { success: false, error: "Failed to clear history" }, status: :unprocessable_entity }
+      end
     end
   end
 
@@ -49,5 +73,18 @@ class GameNotesController < ApplicationController
 
   def game_note_params
     params.require(:game_note).permit(:note_type, :content)
+  end
+
+  def note_json(note)
+    {
+      id: note.id,
+      global_id: note.to_global_id.to_s,
+      note_type: note.note_type,
+      content: helpers.markdown(note.content),
+      created_at: note.created_at.iso8601,
+      stats: note.stats,
+      actions: note.actions,
+      history: note.history
+    }
   end
 end

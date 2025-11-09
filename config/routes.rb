@@ -13,6 +13,7 @@ Rails.application.routes.draw do
     post :agent, on: :member
     resources :game_notes, only: [:create, :update, :destroy] do
       post :call_action, on: :member
+      post :clear_history, on: :member
     end
     resources :pdfs, only: [:show, :create] do
       post :reparse, on: :member
