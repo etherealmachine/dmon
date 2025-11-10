@@ -1,12 +1,9 @@
 class AgentCallJob < ApplicationJob
   queue_as :default
 
-  def perform(game_id, input, context_items: [], model: nil)
+  def perform(game_id, input, context_items: [])
     game = Game.find(game_id)
     agent = game.agent
-
-    # Set model if provided
-    agent.model = model if model.present?
 
     # Call the agent with streaming enabled (by passing a block)
     agent.call(input, context_items: context_items) do |chunk|

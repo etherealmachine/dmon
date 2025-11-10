@@ -57,4 +57,17 @@ class User < ApplicationRecord
 
     user
   end
+
+  def preferred_model=
+    raise "Model must be a valid AI model" unless AiService.valid_model?(model)
+    Rails.cache.write("user:#{id}:preferred_model", model, expires_in: 1.days)
+  end
+
+  def preferred_model
+    Rails.cache.read("user:#{id}:preferred_model") || "gpt-5-nano"
+  end
+
+  def ai_service
+    @ai_service ||= AiService.create(model: preferred_model)
+  end
 end

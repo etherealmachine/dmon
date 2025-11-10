@@ -49,7 +49,10 @@
 
   <div class="content">
     <% if @pdf.html_content.present? %>
-      <%= raw @pdf.html_content %>
+      <iframe srcdoc="<%= @pdf.html_content.gsub('"', '&quot;') %>"
+              style="width: 100%; min-height: 800px; border: 1px solid #ddd; background: white;"
+              onload="this.style.height = (this.contentWindow.document.documentElement.scrollHeight + 20) + 'px';">
+      </iframe>
     <% else %>
       <div class="no-content">
         <p>No HTML content available for this PDF.</p>

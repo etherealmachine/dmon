@@ -40,19 +40,15 @@ class GamesController < ApplicationController
       # Get selected context items from params (GlobalIDs)
       context_items = params[:context_items] || []
 
-      # Get model if provided
-      model = nil
-      if params[:model].present? && GameAgent::ALLOWED_MODELS.include?(params[:model])
-        model = params[:model]
+      if params[:model].present?
+        @game.user.preferred_model = params[:model]
       end
 
       # Queue the agent job for async processing
       AgentCallJob.perform_later(
         @game.id,
         params[:input],
-        context_items: context_items,
-        model: model
-      )
+        context_items: context_items)
 
       # Return success response for AJAX requests
       if request.xhr?
@@ -64,10 +60,6 @@ class GamesController < ApplicationController
     else
       # Provide debug information for the view
       agent = @game.agent
-      if params[:model].present? && GameAgent::ALLOWED_MODELS.include?(params[:model])
-        agent.model = params[:model]
-      end
-      @model = agent.model
       @context_string = agent.send(:context_string)
       @context_messages = agent.send(:context_messages)
       @conversation_history = agent.conversation_history || []

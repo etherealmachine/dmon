@@ -24,22 +24,8 @@ class GameAgent < ApplicationRecord
   after_initialize :ensure_conversation_history
   after_initialize :ensure_plan
 
-  attr_accessor :model
-  ALLOWED_MODELS = %w[gpt-5 gpt-5-nano claude-haiku-4-5-20251001].freeze
-
-  def model
-    @model ||= ALLOWED_MODELS.first
-  end
-
   def ai_service
-    if !ALLOWED_MODELS.include?(model)
-      raise "Invalid model: #{model}"
-    end
-    if model.starts_with?('claude')
-      @ai_service ||= ClaudeService.new(model: model)
-    else
-      @ai_service ||= OpenAiService.new(model: model)
-    end
+    @ai_service ||= game.user.ai_service
   end
 
   def call(input, context_items: [], &block)
@@ -181,7 +167,7 @@ class GameAgent < ApplicationRecord
         # No tool calls, just add the response
         add_message(role: "assistant", content: accumulated_response[:content] || "")
       end
-    rescue OpenAiService::Error, ClaudeService::Error => e
+    rescue AiService::Error => e
       Rails.logger.error "AI Service error: #{e.detailed_message}"
       yield({ type: "error", error: e.detailed_message }) if block_given?
       raise e
