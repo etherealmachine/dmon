@@ -7,7 +7,7 @@ class ExtractMetadata
 
   def call
     raise "OpenAI API key not configured" unless @client
-    raise "No parsed PDF attached" unless @pdf.parsed_pdf.attached?
+    raise "No text content available" unless @pdf.text_content.present?
 
     extract_metadata
   end

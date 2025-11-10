@@ -2,12 +2,14 @@
 #
 # Table name: pdfs
 #
-#  id          :bigint           not null, primary key
-#  description :text
-#  name        :string
-#  created_at  :datetime         not null
-#  updated_at  :datetime         not null
-#  game_id     :bigint           not null
+#  id           :bigint           not null, primary key
+#  description  :text
+#  html_content :text
+#  name         :string
+#  text_content :text
+#  created_at   :datetime         not null
+#  updated_at   :datetime         not null
+#  game_id      :bigint           not null
 #
 # Indexes
 #
@@ -20,17 +22,12 @@
 class Pdf < ApplicationRecord
   belongs_to :game
   has_one_attached :pdf
-  has_one_attached :parsed_pdf
   has_many_attached :images
 
   validates :pdf, presence: true, on: :create
   validate :pdf_content_type, on: :create
 
   after_commit :enqueue_jobs, on: :create
-
-  def text_content
-    @text_content ||= parsed_pdf.download.to_s.encode('UTF-8', 'binary', invalid: :replace, undef: :replace, replace: '')
-  end
 
   def extract_images
     return unless pdf.attached?
@@ -87,21 +84,22 @@ class Pdf < ApplicationRecord
   end
 
   def parse_pdf(process_metadata: true)
-    # Extract text with pdf2txt.py
+    # Extract text and HTML from the PDF
     pdf.open do |tempfile|
+      # Extract text with pdf2txt.py
       text = `pdf2txt.py #{tempfile.path}`
-      parsed_pdf.attach(
-        io: StringIO.new(text),
-        filename: "#{pdf.filename.base}.txt",
-        content_type: 'text/plain'
-      )
+      update!(text_content: text)
     end
 
-    # Refine the raw text into clean markdown
-    RefineText.new(self).call
-
-    # Extract metadata from the refined text
+    extract_html
     extract_metadata if process_metadata
+  end
+
+  def extract_html
+    pdf.open do |tempfile|
+      html = `pdftohtml -s #{tempfile.path}`
+      update!(html_content: html)
+    end
   end
 
   def enqueue_jobs

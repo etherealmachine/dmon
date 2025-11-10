@@ -16,6 +16,7 @@ Rails.application.routes.draw do
       post :clear_history, on: :member
     end
     resources :pdfs, only: [:show, :create] do
+      get :html, on: :member
       post :reparse, on: :member
       post :reclassify_images, on: :member
     end

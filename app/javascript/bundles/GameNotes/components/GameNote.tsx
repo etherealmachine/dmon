@@ -24,6 +24,7 @@ interface HistoryItem {
 interface Note {
   id: number;
   global_id: string;
+  title?: string;
   note_type: string;
   content: string;
   created_at: string;
@@ -35,6 +36,7 @@ interface Note {
 interface GameNoteProps {
   id: number;
   globalId: string;
+  title?: string;
   noteType: string;
   content: string;
   createdAt: string;
@@ -51,6 +53,7 @@ interface GameNoteProps {
 const GameNote: React.FC<GameNoteProps> = ({
   id,
   globalId,
+  title,
   noteType,
   content,
   createdAt,
@@ -64,6 +67,7 @@ const GameNote: React.FC<GameNoteProps> = ({
   onUpdate,
 }) => {
   const [isEditing, setIsEditing] = useState(false);
+  const [editedTitle, setEditedTitle] = useState(title || '');
   const [editedContent, setEditedContent] = useState(content);
   const [editedNoteType, setEditedNoteType] = useState(noteType);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -81,6 +85,7 @@ const GameNote: React.FC<GameNoteProps> = ({
 
   const handleCancel = () => {
     setIsEditing(false);
+    setEditedTitle(title || '');
     setEditedContent(content);
     setEditedNoteType(noteType);
   };
@@ -89,6 +94,7 @@ const GameNote: React.FC<GameNoteProps> = ({
     setIsSubmitting(true);
 
     const formData = new FormData();
+    formData.append('game_note[title]', editedTitle);
     formData.append('game_note[content]', editedContent);
     formData.append('game_note[note_type]', editedNoteType);
     formData.append('_method', 'patch');
@@ -250,6 +256,12 @@ const GameNote: React.FC<GameNoteProps> = ({
             </div>
           </div>
 
+          {title && (
+            <div className="mb-2">
+              <h4 className="text-lg font-bold text-gray-900">{title}</h4>
+            </div>
+          )}
+
           <div className="text-sm text-gray-900 prose prose-sm max-w-none">
             <div dangerouslySetInnerHTML={{ __html: content }} />
           </div>
@@ -367,6 +379,17 @@ const GameNote: React.FC<GameNoteProps> = ({
                   </option>
                 ))}
               </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Title (Optional)</label>
+              <input
+                type="text"
+                value={editedTitle}
+                onChange={(e) => setEditedTitle(e.target.value)}
+                placeholder="e.g., Human Bandit, Magic Sword +1"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                disabled={isSubmitting}
+              />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Note Content</label>

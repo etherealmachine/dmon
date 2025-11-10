@@ -51,6 +51,15 @@ class PdfsController < ApplicationController
     redirect_to game_pdf_path(@game, @pdf), notice: "Image reclassification has been queued. This may take a few moments."
   end
 
+  def html
+    unless @game.user == current_user
+      redirect_to root_path, alert: "You don't have access to this game."
+      return
+    end
+
+    # Render the view with the html_content
+  end
+
   private
 
   def set_game

@@ -51,20 +51,13 @@ class GameAgentTest < ActiveSupport::TestCase
     TEXT
 
     # Create a PDF with text content about an NPC
-    @pdf = @game.pdfs.new(name: "Test Adventure")
+    @pdf = @game.pdfs.new(name: "Test Adventure", text_content: npc_content)
     @pdf.pdf.attach(
       io: StringIO.new("Test PDF Content"),
       filename: "test_adventure.pdf",
       content_type: "application/pdf"
     )
     @pdf.save!
-
-    # Attach the parsed text content
-    @pdf.parsed_pdf.attach(
-      io: StringIO.new(npc_content),
-      filename: "test_adventure.txt",
-      content_type: "text/plain"
-    )
 
     @agent = @game.create_game_agent!
   end

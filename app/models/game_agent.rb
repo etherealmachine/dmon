@@ -202,6 +202,10 @@ class GameAgent < ApplicationRecord
         parameters: {
             type: "object",
             properties: {
+              title: {
+                type: "string",
+                description: "Optional title for the note (e.g., 'Human Bandit', 'Magic Sword +1', 'Town of Oakvale')"
+              },
               content: {
                 type: "string",
                 description: "The note contents - markdown is supported"
@@ -296,13 +300,17 @@ class GameAgent < ApplicationRecord
       },
       {
         name: "edit_game_note",
-        description: "Edit an existing game note by its ID. Can update the content, note type, stats, or actions fields.",
+        description: "Edit an existing game note by its ID. Can update the title, content, note type, stats, or actions fields.",
         parameters: {
             type: "object",
             properties: {
               note_id: {
                 type: "integer",
                 description: "The ID of the note to edit"
+              },
+              title: {
+                type: "string",
+                description: "Updated title for the note"
               },
               content: {
                 type: "string",
@@ -568,6 +576,9 @@ class GameAgent < ApplicationRecord
       note_type: arguments["note_type"]
     }
 
+    # Add title if provided
+    note_params[:title] = arguments["title"] if arguments["title"].present?
+
     # Add stats if provided
     note_params[:stats] = arguments["stats"] if arguments["stats"].present?
 
@@ -577,6 +588,7 @@ class GameAgent < ApplicationRecord
     note = game.game_notes.create!(note_params)
 
     result = { success: true, note_id: note.id, message: "Note created successfully" }
+    result[:title] = note.title if note.title.present?
     result[:stats] = note.stats if note.stats.present?
     result[:actions_count] = note.actions.length if note.actions.present?
     result
@@ -656,6 +668,7 @@ class GameAgent < ApplicationRecord
 
     # Update only the fields that are provided
     update_params = {}
+    update_params[:title] = arguments["title"] if arguments.key?("title")
     update_params[:content] = arguments["content"] if arguments["content"].present?
     update_params[:note_type] = arguments["note_type"] if arguments["note_type"].present?
     update_params[:stats] = arguments["stats"] if arguments.key?("stats")
@@ -675,6 +688,7 @@ class GameAgent < ApplicationRecord
       message: "Note updated successfully",
       note: {
         id: note.id,
+        title: note.title,
         content: note.content,
         note_type: note.note_type,
         created_at: note.created_at,

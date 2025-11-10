@@ -25,6 +25,7 @@ interface HistoryItem {
 interface Note {
   id: number;
   global_id: string;
+  title?: string;
   note_type: string;
   content: string;
   created_at: string;
@@ -50,6 +51,7 @@ const GameNotes: React.FC<GameNotesProps> = ({ gameId, notes: initialNotes, sele
   );
   const [showNewNoteForm, setShowNewNoteForm] = useState(false);
   const [newNoteType, setNewNoteType] = useState('note');
+  const [newNoteTitle, setNewNoteTitle] = useState('');
   const [newNoteContent, setNewNoteContent] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -94,6 +96,7 @@ const GameNotes: React.FC<GameNotesProps> = ({ gameId, notes: initialNotes, sele
 
     const formData = new FormData();
     formData.append('game_note[note_type]', newNoteType);
+    formData.append('game_note[title]', newNoteTitle);
     formData.append('game_note[content]', newNoteContent);
 
     try {
@@ -113,6 +116,7 @@ const GameNotes: React.FC<GameNotesProps> = ({ gameId, notes: initialNotes, sele
         setNotes(prev => [...prev, data.note]);
         // Reset form
         setShowNewNoteForm(false);
+        setNewNoteTitle('');
         setNewNoteContent('');
         setNewNoteType('note');
       } else {
@@ -128,6 +132,7 @@ const GameNotes: React.FC<GameNotesProps> = ({ gameId, notes: initialNotes, sele
 
   const handleCancelNewNote = () => {
     setShowNewNoteForm(false);
+    setNewNoteTitle('');
     setNewNoteContent('');
     setNewNoteType('note');
   };
@@ -162,6 +167,17 @@ const GameNotes: React.FC<GameNotesProps> = ({ gameId, notes: initialNotes, sele
                   </option>
                 ))}
               </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Title (Optional)</label>
+              <input
+                type="text"
+                value={newNoteTitle}
+                onChange={(e) => setNewNoteTitle(e.target.value)}
+                placeholder="e.g., Human Bandit, Magic Sword +1"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent text-sm"
+                disabled={isSubmitting}
+              />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Note Content</label>
@@ -204,6 +220,7 @@ const GameNotes: React.FC<GameNotesProps> = ({ gameId, notes: initialNotes, sele
               key={note.id}
               id={note.id}
               globalId={note.global_id}
+              title={note.title}
               noteType={note.note_type}
               content={note.content}
               createdAt={note.created_at}

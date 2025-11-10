@@ -53,6 +53,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_11_09_002927) do
 
   create_table "game_notes", force: :cascade do |t|
     t.bigint "game_id", null: false
+    t.text "title"
     t.text "content"
     t.string "note_type"
     t.jsonb "stats"
@@ -73,6 +74,8 @@ ActiveRecord::Schema[8.0].define(version: 2025_11_09_002927) do
   create_table "pdfs", force: :cascade do |t|
     t.string "name"
     t.text "description"
+    t.text "text_content"
+    t.text "html_content"
     t.bigint "game_id", null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false

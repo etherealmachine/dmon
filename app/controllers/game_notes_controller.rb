@@ -72,13 +72,14 @@ class GameNotesController < ApplicationController
   end
 
   def game_note_params
-    params.require(:game_note).permit(:note_type, :content)
+    params.require(:game_note).permit(:title, :note_type, :content)
   end
 
   def note_json(note)
     {
       id: note.id,
       global_id: note.to_global_id.to_s,
+      title: note.title,
       note_type: note.note_type,
       content: helpers.markdown(note.content),
       created_at: note.created_at.iso8601,

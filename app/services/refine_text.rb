@@ -7,7 +7,7 @@ class RefineText
 
   def call
     raise "OpenAI API key not configured" unless @client
-    raise "No parsed PDF attached" unless @pdf.parsed_pdf.attached?
+    raise "No text content available" unless @pdf.text_content.present?
 
     refine_text
   end
@@ -25,13 +25,8 @@ class RefineText
     # Process text in chunks
     refined_content = process_in_chunks(raw_text)
 
-    # Replace the parsed_pdf attachment with the refined version
-    @pdf.parsed_pdf.purge
-    @pdf.parsed_pdf.attach(
-      io: StringIO.new(refined_content),
-      filename: "#{@pdf.pdf.filename.base}_refined.md",
-      content_type: 'text/markdown'
-    )
+    # Save the refined content to the text_content column
+    @pdf.update!(text_content: refined_content)
 
     Rails.logger.info "Refined text for PDF ##{@pdf.id}"
   end

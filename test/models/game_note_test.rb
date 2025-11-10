@@ -8,6 +8,7 @@
 #  history    :jsonb
 #  note_type  :string
 #  stats      :jsonb
+#  title      :text
 #  created_at :datetime         not null
 #  updated_at :datetime         not null
 #  game_id    :bigint           not null
