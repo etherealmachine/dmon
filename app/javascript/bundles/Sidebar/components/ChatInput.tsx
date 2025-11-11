@@ -3,8 +3,9 @@ import React, { useState, FormEvent } from 'react';
 interface ChatInputProps {
   gameId: number;
   model: string;
-  onSubmit: (input: string, contextItems: string[]) => void;
+  onSubmit: (input: string, contextItems: string[], model: string) => void;
   isProcessing: boolean;
+  selectedNoteGlobalIds?: string[];
 }
 
 const ALLOWED_MODELS = [
@@ -13,7 +14,7 @@ const ALLOWED_MODELS = [
   'claude-haiku-4-5-20251001'
 ];
 
-const ChatInput: React.FC<ChatInputProps> = ({ gameId, model, onSubmit, isProcessing }) => {
+const ChatInput: React.FC<ChatInputProps> = ({ gameId, model, onSubmit, isProcessing, selectedNoteGlobalIds = [] }) => {
   const [input, setInput] = useState('');
   const [selectedModel, setSelectedModel] = useState(model);
 
@@ -28,17 +29,8 @@ const ChatInput: React.FC<ChatInputProps> = ({ gameId, model, onSubmit, isProces
       return;
     }
 
-    // Collect checked context items
-    const contextItems: string[] = [];
-    document.querySelectorAll('.context-checkbox:checked').forEach((checkbox) => {
-      const gid = (checkbox as HTMLInputElement).dataset.gid;
-      if (gid) {
-        contextItems.push(gid);
-      }
-    });
-
-    // Call parent's submit handler
-    onSubmit(input, contextItems);
+    // Use selectedNoteGlobalIds from props and selectedModel from state
+    onSubmit(input, selectedNoteGlobalIds, selectedModel);
     setInput('');
   };
 

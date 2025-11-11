@@ -43,7 +43,8 @@ class GameNote < ApplicationRecord
   # Return the context representation of this note for the agent
   # @return [String] The formatted context content
   def context
-    parts = ["[#{note_type.upcase}]"]
+    parts = ["[#{note_type.upcase}] ID: #{id}"]
+    parts << "Title: #{title}" if title.present?
     parts << content
 
     if stats.present?
@@ -84,6 +85,64 @@ class GameNote < ApplicationRecord
   # @return [Boolean] true if successful
   def clear_history
     self.history = []
+    save
+  end
+
+  # Update a stat value and append to history
+  # @param key [String] The stat key to update
+  # @param value [String] The new stat value
+  # @return [Boolean] true if successful
+  def update_stat(key, value)
+    return false if key.blank?
+
+    self.stats ||= {}
+    old_value = self.stats[key]
+    self.stats[key] = value
+
+    if save
+      # Append to history
+      self.history ||= []
+      self.history << {
+        success: true,
+        action_type: 'stat_update',
+        action_name: 'Update Stat',
+        action_description: "Changed #{key} from #{old_value} to #{value}",
+        timestamp: Time.current
+      }
+      save
+      true
+    else
+      false
+    end
+  end
+
+  # Delete a stat
+  # @param key [String] The stat key to delete
+  # @return [Boolean] true if successful
+  def delete_stat(key)
+    return false if key.blank? || stats.blank?
+
+    self.stats.delete(key)
+    save
+  end
+
+  # Delete an action by index
+  # @param index [Integer] The index of the action to delete
+  # @return [Boolean] true if successful
+  def delete_action(index)
+    return false if actions.blank? || index >= actions.length || index < 0
+
+    self.actions.delete_at(index)
+    save
+  end
+
+  # Delete a history item by index
+  # @param index [Integer] The index of the history item to delete
+  # @return [Boolean] true if successful
+  def delete_history_item(index)
+    return false if history.blank? || index >= history.length || index < 0
+
+    self.history.delete_at(index)
     save
   end
 

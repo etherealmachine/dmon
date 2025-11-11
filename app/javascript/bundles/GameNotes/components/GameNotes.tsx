@@ -38,9 +38,10 @@ interface GameNotesProps {
   gameId: number;
   notes: Note[];
   selectedNoteIds?: string[];
+  onSelectionChange?: (noteGlobalId: string, selected: boolean) => void;
 }
 
-const GameNotes: React.FC<GameNotesProps> = ({ gameId, notes: initialNotes, selectedNoteIds = [] }) => {
+const GameNotes: React.FC<GameNotesProps> = ({ gameId, notes: initialNotes, selectedNoteIds = [], onSelectionChange }) => {
   const [notes, setNotes] = useState<Note[]>(initialNotes);
   const [selectedIds, setSelectedIds] = useState<Set<number>>(
     new Set(
@@ -72,6 +73,14 @@ const GameNotes: React.FC<GameNotesProps> = ({ gameId, notes: initialNotes, sele
       }
       return newSet;
     });
+
+    // Notify parent component if callback is provided
+    if (onSelectionChange) {
+      const note = notes.find(n => n.id === noteId);
+      if (note) {
+        onSelectionChange(note.global_id, selected);
+      }
+    }
   };
 
   const handleDelete = (noteId: number) => {

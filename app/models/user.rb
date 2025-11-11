@@ -58,7 +58,7 @@ class User < ApplicationRecord
     user
   end
 
-  def preferred_model=
+  def preferred_model=(model)
     raise "Model must be a valid AI model" unless AiService.valid_model?(model)
     Rails.cache.write("user:#{id}:preferred_model", model, expires_in: 1.days)
   end

@@ -24,6 +24,7 @@
   "devDependencies": {
     "@babel/preset-typescript": "^7.28.5",
     "@pmmmwh/react-refresh-webpack-plugin": "^0.6.1",
+    "@tailwindcss/typography": "^0.5.19",
     "@types/react": "^19.2.2",
     "@types/react-dom": "^19.2.2",
     "react-refresh": "^0.18.0",
@@ -51,7 +52,9 @@
     "prop-types": "^15.8.1",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
+    "react-markdown": "^10.1.0",
     "react-on-rails": "^14.2.1",
+    "remark-gfm": "^4.0.1",
     "shakapacker": "8.4.0",
     "style-loader": "^4.0.0",
     "terser-webpack-plugin": "^5.3.14",

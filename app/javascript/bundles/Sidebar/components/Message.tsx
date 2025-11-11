@@ -1,4 +1,6 @@
 import React from 'react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 
 interface MessageProps {
   role: string;
@@ -59,10 +61,9 @@ const Message: React.FC<MessageProps> = ({ role, content, tool_calls, tool_call_
 
       {/* Show content if present */}
       {content && content.trim() && (
-        <div
-          className="flex flex-col text-sm text-gray-700 whitespace-pre-wrap"
-          dangerouslySetInnerHTML={{ __html: content }}
-        />
+        <div className="text-sm text-gray-700 prose prose-sm max-w-none">
+          <ReactMarkdown remarkPlugins={[remarkGfm]}>{content}</ReactMarkdown>
+        </div>
       )}
     </div>
   );

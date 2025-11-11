@@ -50,8 +50,10 @@ class GameAgent < ApplicationRecord
     end
 
     transaction do
-      add_message(role: "user", content: input)
-      yield({ type: "user_message", content: input }) if block_given?
+      unless input.empty?
+        add_message(role: "user", content: input)
+        yield({ type: "user_message", content: input }) if block_given?
+      end
 
       # Determine if we should stream
       stream = block_given?

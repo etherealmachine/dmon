@@ -14,6 +14,10 @@ Rails.application.routes.draw do
     resources :game_notes, only: [:create, :update, :destroy] do
       post :call_action, on: :member
       post :clear_history, on: :member
+      post :update_stat, on: :member
+      post :delete_stat, on: :member
+      post :delete_action, on: :member
+      post :delete_history_item, on: :member
     end
     resources :pdfs, only: [:show, :create] do
       get :html, on: :member

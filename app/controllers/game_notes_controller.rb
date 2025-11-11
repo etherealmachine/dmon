@@ -1,7 +1,7 @@
 class GameNotesController < ApplicationController
   before_action :authenticate_user!
   before_action :set_game
-  before_action :set_game_note, only: [:update, :destroy, :call_action, :clear_history]
+  before_action :set_game_note, only: [:update, :destroy, :call_action, :clear_history, :update_stat, :delete_stat, :delete_action, :delete_history_item]
 
   def create
     @game_note = @game.game_notes.build(game_note_params)
@@ -61,6 +61,55 @@ class GameNotesController < ApplicationController
     end
   end
 
+  def update_stat
+    stat_key = params[:stat_key]
+    stat_value = params[:stat_value]
+
+    respond_to do |format|
+      if @game_note.update_stat(stat_key, stat_value)
+        format.json { render json: { success: true, note: note_json(@game_note) } }
+      else
+        format.json { render json: { success: false, error: "Failed to update stat" }, status: :unprocessable_entity }
+      end
+    end
+  end
+
+  def delete_stat
+    stat_key = params[:stat_key]
+
+    respond_to do |format|
+      if @game_note.delete_stat(stat_key)
+        format.json { render json: { success: true, note: note_json(@game_note) } }
+      else
+        format.json { render json: { success: false, error: "Failed to delete stat" }, status: :unprocessable_entity }
+      end
+    end
+  end
+
+  def delete_action
+    action_index = params[:action_index].to_i
+
+    respond_to do |format|
+      if @game_note.delete_action(action_index)
+        format.json { render json: { success: true, note: note_json(@game_note) } }
+      else
+        format.json { render json: { success: false, error: "Failed to delete action" }, status: :unprocessable_entity }
+      end
+    end
+  end
+
+  def delete_history_item
+    history_index = params[:history_index].to_i
+
+    respond_to do |format|
+      if @game_note.delete_history_item(history_index)
+        format.json { render json: { success: true, note: note_json(@game_note) } }
+      else
+        format.json { render json: { success: false, error: "Failed to delete history item" }, status: :unprocessable_entity }
+      end
+    end
+  end
+
   private
 
   def set_game
@@ -81,7 +130,7 @@ class GameNotesController < ApplicationController
       global_id: note.to_global_id.to_s,
       title: note.title,
       note_type: note.note_type,
-      content: helpers.markdown(note.content),
+      content: note.content,
       created_at: note.created_at.iso8601,
       stats: note.stats,
       actions: note.actions,

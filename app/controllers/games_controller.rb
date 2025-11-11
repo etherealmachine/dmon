@@ -33,6 +33,11 @@ class GamesController < ApplicationController
 
   def show
     @game_notes = @game.game_notes.chronological
+
+    respond_to do |format|
+      format.html
+      format.json { render json: @game }
+    end
   end
 
   def agent

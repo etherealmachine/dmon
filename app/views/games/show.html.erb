@@ -2,96 +2,87 @@
   <h1 class="text-xl font-bold text-white"><%= @game.pdfs.first.name %></h1>
 <% end %>
 
-<div class="flex h-[calc(100vh-4rem)]">
-  <!-- Main Panel -->
-  <div class="flex-1 overflow-y-auto p-8 bg-gray-50">
-      <div class="max-w-4xl mx-auto">
-        <!-- PDFs Grid -->
-        <div class="mb-6">
-          <h3 class="text-lg font-semibold mb-3">Game PDFs</h3>
+<!-- PDFs Grid -->
+<div class="mb-6 p-8 bg-gray-50">
+  <div class="max-w-4xl mx-auto">
+    <h3 class="text-lg font-semibold mb-3">Game PDFs</h3>
 
-          <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            <% @game.pdfs.select(&:persisted?).each do |pdf| %>
-                <%= link_to game_pdf_path(@game, pdf), class: "block bg-white rounded-lg shadow hover:shadow-lg transition-shadow p-4 border border-gray-200" do %>
-                  <div class="flex items-start space-x-3">
-                    <!-- PDF Icon -->
-                    <div class="flex-shrink-0 w-12 h-12 bg-red-100 rounded-lg flex items-center justify-center">
-                      <svg class="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"></path>
-                      </svg>
-                    </div>
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      <% @game.pdfs.select(&:persisted?).each do |pdf| %>
+          <%= link_to game_pdf_path(@game, pdf), class: "block bg-white rounded-lg shadow hover:shadow-lg transition-shadow p-4 border border-gray-200" do %>
+            <div class="flex items-start space-x-3">
+              <!-- PDF Icon -->
+              <div class="flex-shrink-0 w-12 h-12 bg-red-100 rounded-lg flex items-center justify-center">
+                <svg class="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"></path>
+                </svg>
+              </div>
 
-                    <!-- PDF Info -->
-                    <div class="flex-1 min-w-0">
-                      <h4 class="text-sm font-semibold text-gray-900 truncate mb-1">
-                        <%= pdf.name %>
-                      </h4>
-                      <% if pdf.description.present? %>
-                        <p class="text-xs text-gray-600 line-clamp-2">
-                          <%= pdf.description %>
-                        </p>
-                      <% end %>
-                      <% if pdf.images.any? %>
-                        <p class="text-xs text-gray-500 mt-1">
-                          <%= pdf.images.count %> images
-                        </p>
-                      <% end %>
-                    </div>
-                  </div>
+              <!-- PDF Info -->
+              <div class="flex-1 min-w-0">
+                <h4 class="text-sm font-semibold text-gray-900 truncate mb-1">
+                  <%= pdf.name %>
+                </h4>
+                <% if pdf.description.present? %>
+                  <p class="text-xs text-gray-600 line-clamp-2">
+                    <%= pdf.description %>
+                  </p>
                 <% end %>
-              <% end %>
-
-            <!-- Upload New PDF Card -->
-            <div class="bg-white rounded-lg shadow hover:shadow-lg transition-shadow p-4 border-2 border-dashed border-gray-300">
-              <%= form_with(model: [@game, @game.pdfs.build], class: "h-full flex flex-col justify-center") do |f| %>
-                <div class="flex-shrink-0 w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center mx-auto mb-3">
-                  <svg class="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
-                  </svg>
-                </div>
-                <h4 class="text-sm font-semibold text-gray-900 text-center mb-3">Add New PDF</h4>
-                <%= f.file_field :pdf,
-                    accept: "application/pdf",
-                    class: "block w-full text-xs text-gray-500 file:mr-2 file:py-2 file:px-3 file:rounded file:border-0 file:text-xs file:font-medium file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 mb-3" %>
-                <%= f.submit "Add PDF", class: "w-full bg-blue-500 hover:bg-blue-600 text-white font-medium py-2 px-4 rounded-lg transition-colors cursor-pointer text-sm" %>
-              <% end %>
+                <% if pdf.images.any? %>
+                  <p class="text-xs text-gray-500 mt-1">
+                    <%= pdf.images.count %> images
+                  </p>
+                <% end %>
+              </div>
             </div>
-          </div>
-        </div>
+          <% end %>
+        <% end %>
 
-        <!-- Game Notes -->
-        <%= react_component("GameNotes", props: {
-          gameId: @game.id,
-          notes: @game.game_notes.chronological.map { |note|
-            {
-              id: note.id,
-              global_id: note.to_global_id.to_s,
-              note_type: note.note_type,
-              content: markdown(note.content),
-              created_at: note.created_at.iso8601,
-              stats: note.stats,
-              actions: note.actions,
-              history: note.history
-            }
-          },
-          selectedNoteIds: params[:context_items] || []
-        }) %>
+      <!-- Upload New PDF Card -->
+      <div class="bg-white rounded-lg shadow hover:shadow-lg transition-shadow p-4 border-2 border-dashed border-gray-300">
+        <%= form_with(model: [@game, @game.pdfs.build], class: "h-full flex flex-col justify-center") do |f| %>
+          <div class="flex-shrink-0 w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center mx-auto mb-3">
+            <svg class="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
+            </svg>
+          </div>
+          <h4 class="text-sm font-semibold text-gray-900 text-center mb-3">Add New PDF</h4>
+          <%= f.file_field :pdf,
+              accept: "application/pdf",
+              class: "block w-full text-xs text-gray-500 file:mr-2 file:py-2 file:px-3 file:rounded file:border-0 file:text-xs file:font-medium file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 mb-3" %>
+          <%= f.submit "Add PDF", class: "w-full bg-blue-500 hover:bg-blue-600 text-white font-medium py-2 px-4 rounded-lg transition-colors cursor-pointer text-sm" %>
+        <% end %>
       </div>
     </div>
-
-  <!-- Sidebar -->
-  <%= react_component("Sidebar", props: {
-    gameId: @game.id,
-    plan: @game.agent&.plan || [],
-    model: @game.user.preferred_model,
-    conversationHistory: (@game.agent&.conversation_history || []).map { |msg|
-      result = {
-        role: msg['role'],
-        content: markdown(msg['content'])
-      }
-      result[:tool_calls] = msg['tool_calls'] if msg['tool_calls'].present?
-      result[:tool_call_id] = msg['tool_call_id'] if msg['tool_call_id'].present?
-      result
-    }
-  }) %>
+  </div>
 </div>
+
+<!-- Game Page (Notes + Sidebar) -->
+<%= react_component("GamePage", props: {
+  gameId: @game.id,
+  notes: @game.game_notes.chronological.map { |note|
+    {
+      id: note.id,
+      global_id: note.to_global_id.to_s,
+      title: note.title,
+      note_type: note.note_type,
+      content: note.content,
+      created_at: note.created_at.iso8601,
+      stats: note.stats,
+      actions: note.actions,
+      history: note.history
+    }
+  },
+  selectedNoteIds: params[:context_items] || [],
+  plan: @game.agent&.plan || [],
+  model: @game.user.preferred_model,
+  conversationHistory: (@game.agent&.conversation_history || []).map { |msg|
+    result = {
+      role: msg['role'],
+      content: msg['content']
+    }
+    result[:tool_calls] = msg['tool_calls'] if msg['tool_calls'].present?
+    result[:tool_call_id] = msg['tool_call_id'] if msg['tool_call_id'].present?
+    result
+  }
+}) %>

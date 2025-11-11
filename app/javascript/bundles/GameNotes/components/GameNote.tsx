@@ -1,4 +1,6 @@
 import React, { useState } from 'react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 
 interface Action {
   name: string;
@@ -71,6 +73,8 @@ const GameNote: React.FC<GameNoteProps> = ({
   const [editedContent, setEditedContent] = useState(content);
   const [editedNoteType, setEditedNoteType] = useState(noteType);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [editingStatKey, setEditingStatKey] = useState<string | null>(null);
+  const [editingStatValue, setEditingStatValue] = useState<string>('');
 
   const noteTypes = [
     { label: 'Note', value: 'note' },
@@ -207,6 +211,153 @@ const GameNote: React.FC<GameNoteProps> = ({
     }
   };
 
+  const handleStatClick = (key: string, value: any) => {
+    setEditingStatKey(key);
+    setEditingStatValue(String(value));
+  };
+
+  const handleStatKeyDown = async (e: React.KeyboardEvent, key: string) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      await handleStatUpdate(key);
+    } else if (e.key === 'Escape') {
+      setEditingStatKey(null);
+      setEditingStatValue('');
+    }
+  };
+
+  const handleStatUpdate = async (key: string) => {
+    // Get the current value and compare
+    const currentValue = stats?.[key];
+    if (String(currentValue) === editingStatValue) {
+      // No change, just cancel editing
+      setEditingStatKey(null);
+      setEditingStatValue('');
+      return;
+    }
+
+    const formData = new FormData();
+    formData.append('stat_key', key);
+    formData.append('stat_value', editingStatValue);
+
+    try {
+      const response = await fetch(`/games/${gameId}/game_notes/${id}/update_stat`, {
+        method: 'POST',
+        body: formData,
+        headers: {
+          'X-CSRF-Token': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
+          'Accept': 'application/json'
+        },
+      });
+
+      const data = await response.json();
+
+      if (data.success && data.note) {
+        onUpdate(data.note);
+        setEditingStatKey(null);
+        setEditingStatValue('');
+      } else {
+        alert(`Failed to update stat: ${data.error || 'Unknown error'}`);
+      }
+    } catch (error) {
+      console.error('Error updating stat:', error);
+      alert('Failed to update stat');
+    }
+  };
+
+  const handleDeleteStat = async (key: string) => {
+    if (!confirm(`Are you sure you want to delete the stat "${key}"?`)) {
+      return;
+    }
+
+    const formData = new FormData();
+    formData.append('stat_key', key);
+
+    try {
+      const response = await fetch(`/games/${gameId}/game_notes/${id}/delete_stat`, {
+        method: 'POST',
+        body: formData,
+        headers: {
+          'X-CSRF-Token': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
+          'Accept': 'application/json'
+        },
+      });
+
+      const data = await response.json();
+
+      if (data.success && data.note) {
+        onUpdate(data.note);
+      } else {
+        alert(`Failed to delete stat: ${data.error || 'Unknown error'}`);
+      }
+    } catch (error) {
+      console.error('Error deleting stat:', error);
+      alert('Failed to delete stat');
+    }
+  };
+
+  const handleDeleteAction = async (actionIndex: number) => {
+    if (!confirm('Are you sure you want to delete this action?')) {
+      return;
+    }
+
+    const formData = new FormData();
+    formData.append('action_index', actionIndex.toString());
+
+    try {
+      const response = await fetch(`/games/${gameId}/game_notes/${id}/delete_action`, {
+        method: 'POST',
+        body: formData,
+        headers: {
+          'X-CSRF-Token': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
+          'Accept': 'application/json'
+        },
+      });
+
+      const data = await response.json();
+
+      if (data.success && data.note) {
+        onUpdate(data.note);
+      } else {
+        alert(`Failed to delete action: ${data.error || 'Unknown error'}`);
+      }
+    } catch (error) {
+      console.error('Error deleting action:', error);
+      alert('Failed to delete action');
+    }
+  };
+
+  const handleDeleteHistoryItem = async (historyIndex: number) => {
+    if (!confirm('Are you sure you want to delete this history item?')) {
+      return;
+    }
+
+    const formData = new FormData();
+    formData.append('history_index', historyIndex.toString());
+
+    try {
+      const response = await fetch(`/games/${gameId}/game_notes/${id}/delete_history_item`, {
+        method: 'POST',
+        body: formData,
+        headers: {
+          'X-CSRF-Token': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
+          'Accept': 'application/json'
+        },
+      });
+
+      const data = await response.json();
+
+      if (data.success && data.note) {
+        onUpdate(data.note);
+      } else {
+        alert(`Failed to delete history item: ${data.error || 'Unknown error'}`);
+      }
+    } catch (error) {
+      console.error('Error deleting history item:', error);
+      alert('Failed to delete history item');
+    }
+  };
+
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
     return date.toLocaleDateString('en-US', {
@@ -263,7 +414,7 @@ const GameNote: React.FC<GameNoteProps> = ({
           )}
 
           <div className="text-sm text-gray-900 prose prose-sm max-w-none">
-            <div dangerouslySetInnerHTML={{ __html: content }} />
+            <ReactMarkdown remarkPlugins={[remarkGfm]}>{content}</ReactMarkdown>
           </div>
 
           {stats && Object.keys(stats).length > 0 && (
@@ -271,9 +422,37 @@ const GameNote: React.FC<GameNoteProps> = ({
               <div className="text-xs font-medium text-gray-500 uppercase mb-2">Stats</div>
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                 {Object.entries(stats).map(([key, value]) => (
-                  <div key={key} className="p-2 bg-blue-50 rounded border border-blue-200">
-                    <div className="text-xs text-gray-600 mb-0.5">{key}</div>
-                    <div className="text-lg font-semibold text-gray-900">{String(value)}</div>
+                  <div key={key} className="group relative p-2 bg-blue-50 rounded border border-blue-200">
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDeleteStat(key);
+                      }}
+                      className="absolute top-1 right-1 bg-red-500 hover:bg-red-600 text-white text-base font-bold w-5 h-5 rounded flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                      title="Delete stat"
+                    >
+                      ×
+                    </button>
+                    <div className="text-xs text-gray-600 mb-0.5 pr-6">{key}</div>
+                    {editingStatKey === key ? (
+                      <input
+                        type="text"
+                        value={editingStatValue}
+                        onChange={(e) => setEditingStatValue(e.target.value)}
+                        onKeyDown={(e) => handleStatKeyDown(e, key)}
+                        onBlur={() => handleStatUpdate(key)}
+                        autoFocus
+                        className="text-lg font-semibold text-gray-900 bg-white border border-blue-300 rounded px-1 w-full"
+                      />
+                    ) : (
+                      <div
+                        className="text-lg font-semibold text-gray-900 cursor-pointer hover:bg-blue-100 rounded px-1"
+                        onClick={() => handleStatClick(key, value)}
+                        title="Click to edit"
+                      >
+                        {String(value)}
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
@@ -285,7 +464,7 @@ const GameNote: React.FC<GameNoteProps> = ({
               <div className="text-xs font-medium text-gray-500 uppercase mb-2">Actions</div>
               <div className="space-y-2">
                 {actions.map((action, index) => (
-                  <div key={index} className="flex items-center justify-between p-2 bg-gray-50 rounded border border-gray-200">
+                  <div key={index} className="group relative flex items-center justify-between p-2 bg-gray-50 rounded border border-gray-200">
                     <div className="flex-1">
                       <div className="text-sm font-medium text-gray-900">
                         {action.name || `Action ${index + 1}`}
@@ -293,14 +472,26 @@ const GameNote: React.FC<GameNoteProps> = ({
                       {action.description && (
                         <div className="text-xs text-gray-600">{action.description}</div>
                       )}
+                      {action.args && (
+                        <div className="text-xs text-gray-600">Args: {JSON.stringify(action.args)}</div>
+                      )}
                       <div className="text-xs text-gray-500 mt-1">Type: {action.type}</div>
                     </div>
-                    <button
-                      onClick={() => handleExecuteAction(index)}
-                      className="ml-3 bg-purple-500 hover:bg-purple-600 text-white text-xs font-medium py-1 px-3 rounded transition-colors"
-                    >
-                      Execute
-                    </button>
+                    <div className="flex gap-2 ml-3 flex-shrink-0">
+                      <button
+                        onClick={() => handleExecuteAction(index)}
+                        className="bg-purple-500 hover:bg-purple-600 text-white text-xs font-medium py-1 px-3 rounded transition-colors"
+                      >
+                        Execute
+                      </button>
+                      <button
+                        onClick={() => handleDeleteAction(index)}
+                        className="bg-red-500 hover:bg-red-600 text-white text-base font-bold py-1 px-2 rounded transition-colors opacity-0 group-hover:opacity-100"
+                        title="Delete action"
+                      >
+                        ×
+                      </button>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -322,11 +513,18 @@ const GameNote: React.FC<GameNoteProps> = ({
                 {history.map((item, index) => (
                   <div
                     key={index}
-                    className={`p-3 bg-gray-50 rounded border ${
+                    className={`group relative p-3 bg-gray-50 rounded border ${
                       item.success ? 'border-green-200' : 'border-red-200'
                     }`}
                   >
-                    <div className="flex items-start justify-between mb-1">
+                    <button
+                      onClick={() => handleDeleteHistoryItem(index)}
+                      className="absolute top-2 right-2 bg-red-500 hover:bg-red-600 text-white text-sm font-bold rounded w-5 h-5 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                      title="Delete history item"
+                    >
+                      ×
+                    </button>
+                    <div className="flex items-start justify-between mb-1 pr-8">
                       <div className={`text-xs font-medium ${
                         item.success ? 'text-green-700' : 'text-red-700'
                       }`}>

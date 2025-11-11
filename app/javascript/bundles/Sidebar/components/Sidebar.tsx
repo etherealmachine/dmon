@@ -26,9 +26,10 @@ interface SidebarProps {
   plan: PlanItem[];
   model: string;
   conversationHistory: ConversationMessage[];
+  selectedNoteGlobalIds?: string[];
 }
 
-const Sidebar: React.FC<SidebarProps> = ({ gameId, plan: initialPlan, model, conversationHistory: initialHistory }) => {
+const Sidebar: React.FC<SidebarProps> = ({ gameId, plan: initialPlan, model, conversationHistory: initialHistory, selectedNoteGlobalIds = [] }) => {
   const [conversationHistory, setConversationHistory] = useState<ConversationMessage[]>(initialHistory);
   const [plan, setPlan] = useState<PlanItem[]>(initialPlan);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -106,7 +107,7 @@ const Sidebar: React.FC<SidebarProps> = ({ gameId, plan: initialPlan, model, con
     };
   }, [gameId]);
 
-  const handleSubmit = async (input: string, contextItems: string[]) => {
+  const handleSubmit = async (input: string, contextItems: string[], selectedModel: string) => {
     if (isProcessing) {
       alert('Please wait for the current request to complete');
       return;
@@ -122,7 +123,7 @@ const Sidebar: React.FC<SidebarProps> = ({ gameId, plan: initialPlan, model, con
 
     const formData = new FormData();
     formData.append('input', input);
-    formData.append('model', model);
+    formData.append('model', selectedModel);
     contextItems.forEach(item => {
       formData.append('context_items[]', item);
     });
@@ -184,6 +185,7 @@ const Sidebar: React.FC<SidebarProps> = ({ gameId, plan: initialPlan, model, con
         model={model}
         onSubmit={handleSubmit}
         isProcessing={isProcessing}
+        selectedNoteGlobalIds={selectedNoteGlobalIds}
       />
     </div>
   );
