@@ -1,0 +1,224 @@
+class PdfToHtml
+  def initialize(pdf)
+    @pdf = pdf
+  end
+
+  def call
+    @pdf.images.destroy_all
+    @pdf.fonts.destroy_all
+
+    @pdf.pdf.open do |tempfile|
+      convert_to_html(tempfile)
+    end
+  end
+
+  private
+
+  def convert_to_html(tempfile)
+    Dir.mktmpdir do |tmpdir|
+      output_path = File.join(tmpdir, 'output')
+      # Use -c flag for complex output with better font handling
+      # Use -fontfullname to preserve full font names
+      # Use -zoom to increase image resolution (default is 1.5)
+      system('pdftohtml', '-c', '-s', '-fontfullname', '-zoom', '3.0', tempfile.path, output_path)
+
+      html_file = "#{output_path}-html.html"
+      return unless File.exist?(html_file)
+
+      html_content = File.read(html_file)
+      doc = Nokogiri::HTML.fragment(html_content)
+
+      extract_and_attach_fonts(tempfile, doc)
+      attach_images(tmpdir, doc)
+      fix_font_family_quotes(doc)
+
+      @pdf.update!(html_content: doc.to_html)
+    end
+  end
+
+  def extract_and_attach_fonts(tempfile, doc)
+    Dir.mktmpdir do |font_dir|
+      Dir.chdir(font_dir) do
+        system('mutool', 'extract', tempfile.path)
+
+        # Get list of font names used in the HTML
+        html_fonts = doc.to_html.scan(/font-family:([^;]+)/).flatten.map(&:strip).uniq
+        used_html_fonts = Set.new
+
+        # First pass: match fonts by name similarity
+        font_files = Dir.glob(File.join(font_dir, 'font-*.{ttf,cff,otf}')).sort
+        font_files.each do |font_path|
+          matched_html_font = match_font_to_html(font_path, html_fonts, used_html_fonts)
+
+          if matched_html_font
+            used_html_fonts.add(matched_html_font)
+            attach_font(font_path, matched_html_font)
+          end
+        end
+
+        # Second pass: assign remaining unmatched fonts to remaining HTML fonts
+        assign_remaining_fonts(font_dir, html_fonts, used_html_fonts)
+      end
+    end
+  end
+
+  def match_font_to_html(font_path, html_fonts, used_html_fonts)
+    filename = File.basename(font_path)
+
+    # Try to extract font name from the font file itself using fc-scan
+    fc_output = `fc-scan #{font_path} 2>&1`
+    base_font_name = fc_output.match(/fullname: "([^"]+)"/)[1] rescue nil
+
+    return nil unless base_font_name
+
+    # Clean up the base font name for matching
+    clean_base = base_font_name.gsub(/\s+/, '').gsub(/Regular$/, '').gsub(/-Regular$/, '')
+
+    # Try exact match first
+    matched_html_font = html_fonts.find do |hf|
+      next if used_html_fonts.include?(hf)
+
+      clean_html = hf.gsub(/\s+/, '')
+      font_suffix = clean_html.split('+').last
+
+      # Exact match: the suffix exactly matches the base name
+      clean_base == font_suffix
+    end
+
+    # If no exact match, try partial match with preference for longest common substring
+    if !matched_html_font
+      best_match = nil
+      best_score = 0
+
+      html_fonts.each do |hf|
+        next if used_html_fonts.include?(hf)
+
+        clean_html = hf.gsub(/\s+/, '')
+        font_suffix = clean_html.split('+').last
+
+        # Score based on how well they match
+        # Higher score for longer matching substrings
+        if clean_base.include?(font_suffix)
+          score = font_suffix.length
+        elsif font_suffix.include?(clean_base)
+          score = clean_base.length
+        else
+          score = 0
+        end
+
+        if score > best_score
+          best_score = score
+          best_match = hf
+        end
+      end
+
+      matched_html_font = best_match if best_score > 0
+    end
+
+    matched_html_font
+  end
+
+  def assign_remaining_fonts(font_dir, html_fonts, used_html_fonts)
+    remaining_html_fonts = html_fonts - used_html_fonts.to_a
+    return unless remaining_html_fonts.any?
+
+    font_files = Dir.glob(File.join(font_dir, 'font-*.{ttf,cff,otf}')).sort
+
+    font_files.each do |font_path|
+      filename = File.basename(font_path)
+
+      # Skip if already attached
+      next if @pdf.fonts.any? { |f| f.filename.to_s == filename }
+
+      # Assign to next remaining HTML font
+      if remaining_html_fonts.any?
+        matched_html_font = remaining_html_fonts.shift
+
+        fc_output = `fc-scan #{font_path} 2>&1`
+        base_font_name = fc_output.match(/fullname: "([^"]+)"/)[1] rescue nil
+
+        attach_font(font_path, matched_html_font, base_font_name)
+      end
+    end
+  end
+
+  def attach_font(font_path, font_name, base_font_name = nil)
+    filename = File.basename(font_path)
+
+    # Extract base font name if not provided
+    unless base_font_name
+      fc_output = `fc-scan #{font_path} 2>&1`
+      base_font_name = fc_output.match(/fullname: "([^"]+)"/)[1] rescue nil
+    end
+
+    @pdf.fonts.attach(
+      io: File.open(font_path),
+      filename: filename,
+      content_type: Marcel::MimeType.for(Pathname.new(font_path)),
+      metadata: {
+        font_name: font_name,
+        base_font_name: base_font_name
+      }
+    )
+  end
+
+  def attach_images(tmpdir, doc)
+    # Find all image files generated by pdftohtml
+    image_files = Dir.glob(File.join(tmpdir, 'output*.{png,jpg,jpeg}'))
+
+    # Attach images to Active Storage and rewrite URLs in HTML
+    image_files.each do |image_path|
+      filename = File.basename(image_path)
+
+      # Attach the image
+      blob = @pdf.images.attach(
+        io: File.open(image_path),
+        filename: filename,
+        content_type: Marcel::MimeType.for(Pathname.new(image_path))
+      ).last
+
+      # Replace the local filename with the Active Storage URL using Nokogiri
+      if blob
+        storage_url = Rails.application.routes.url_helpers.rails_blob_path(blob, only_path: true)
+
+        # Update all img tags with matching src attribute
+        doc.css("img[src*='#{filename}']").each do |img|
+          img['src'] = storage_url
+        end
+      end
+    end
+  end
+
+  def fix_font_family_quotes(doc)
+    # Fix font-family values in CSS to add quotes around names with special characters
+    # Find all style tags and inline styles
+    doc.css('style').each do |style_tag|
+      content = style_tag.content
+      # Add quotes around font-family values that contain + or other special chars
+      content = content.gsub(/font-family:\s*([^;'"]+)/) do |match|
+        font_name = $1.strip
+        # If the font name contains special characters and isn't already quoted, quote it
+        if font_name.match?(/[+]/) && !font_name.match?(/^['"]/)
+          "font-family: '#{font_name}'"
+        else
+          match
+        end
+      end
+      style_tag.content = content
+    end
+
+    # Fix inline style attributes
+    doc.css('[style]').each do |element|
+      style = element['style']
+      style = style.gsub(/font-family:\s*([^;'"]+)/) do |match|
+        font_name = $1.strip
+        if font_name.match?(/[+]/) && !font_name.match?(/^['"]/)
+          "font-family: '#{font_name}'"
+        else
+          match
+        end
+      end
+      element['style'] = style
+    end
+  end
+end

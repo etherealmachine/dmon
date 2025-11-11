@@ -83,7 +83,7 @@
   <%= react_component("Sidebar", props: {
     gameId: @game.id,
     plan: @game.agent&.plan || [],
-    model: @game.agent&.model || GameAgent::ALLOWED_MODELS.first,
+    model: @game.user.preferred_model,
     conversationHistory: (@game.agent&.conversation_history || []).map { |msg|
       result = {
         role: msg['role'],

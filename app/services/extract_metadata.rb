@@ -1,12 +1,11 @@
 class ExtractMetadata
-  def initialize(pdf, api_key: nil)
+  def initialize(pdf, api_key: nil, model: "gpt-5-nano")
     @pdf = pdf
-    @api_key = api_key || ENV['OPENAI_API_KEY']
-    @client = @api_key ? OpenAI::Client.new(access_token: @api_key) : nil
+    @api_key = api_key
+    @model = model
   end
 
   def call
-    raise "OpenAI API key not configured" unless @client
     raise "No text content available" unless @pdf.text_content.present?
 
     extract_metadata
@@ -28,20 +27,22 @@ class ExtractMetadata
   end
 
   def analyze_with_openai(text_content)
-    response = @client.chat(
-      parameters: {
-        model: "gpt-5-nano",
-        messages: [
-          {
-            role: "user",
-            content: metadata_extraction_prompt(text_content)
-          }
-        ],
-      }
+    response = AiService.chat(
+      model: @model,
+      messages: [
+        {
+          role: "user",
+          content: metadata_extraction_prompt(text_content)
+        }
+      ],
+      api_key: @api_key
     )
 
-    content = response.dig("choices", 0, "message", "content") || ""
+    content = response[:content] || ""
     parse_metadata_response(content)
+  rescue AiService::Error => e
+    Rails.logger.error "AI service error while extracting metadata: #{e.detailed_message}"
+    raise
   end
 
   def metadata_extraction_prompt(text_content)

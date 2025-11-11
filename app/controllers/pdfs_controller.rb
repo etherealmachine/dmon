@@ -56,8 +56,6 @@ class PdfsController < ApplicationController
       redirect_to root_path, alert: "You don't have access to this game."
       return
     end
-
-    # Render the view with the html_content
   end
 
   private

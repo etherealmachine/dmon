@@ -1,12 +1,11 @@
 class RefineText
-  def initialize(pdf, api_key: nil)
+  def initialize(pdf, api_key: nil, model: "gpt-4o")
     @pdf = pdf
-    @api_key = api_key || ENV['OPENAI_API_KEY']
-    @client = @api_key ? OpenAI::Client.new(access_token: @api_key) : nil
+    @api_key = api_key
+    @model = model
   end
 
   def call
-    raise "OpenAI API key not configured" unless @client
     raise "No text content available" unless @pdf.text_content.present?
 
     refine_text
@@ -88,19 +87,21 @@ class RefineText
   end
 
   def refine_chunk_with_openai(chunk, markdown_context, chunk_index, total_chunks)
-    response = @client.chat(
-      parameters: {
-        model: "gpt-4o",
-        messages: [
-          {
-            role: "user",
-            content: refine_chunk_prompt(chunk, markdown_context, chunk_index, total_chunks)
-          }
-        ],
-      }
+    response = AiService.chat(
+      model: @model,
+      messages: [
+        {
+          role: "user",
+          content: refine_chunk_prompt(chunk, markdown_context, chunk_index, total_chunks)
+        }
+      ],
+      api_key: @api_key
     )
 
-    response.dig("choices", 0, "message", "content") || chunk[:text]
+    response[:content] || chunk[:text]
+  rescue AiService::Error => e
+    Rails.logger.error "AI service error while refining chunk: #{e.detailed_message}"
+    raise
   end
 
   def refine_chunk_prompt(chunk, markdown_context, chunk_index, total_chunks)
