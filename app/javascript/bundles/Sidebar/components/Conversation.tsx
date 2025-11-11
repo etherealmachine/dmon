@@ -20,17 +20,17 @@ interface ConversationProps {
 }
 
 const Conversation: React.FC<ConversationProps> = ({ conversationHistory }) => {
-  const containerRef = useRef<HTMLDivElement>(null);
+  const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     // Scroll to bottom when conversation updates
-    if (containerRef.current) {
-      containerRef.current.scrollTop = containerRef.current.scrollHeight;
+    if (bottomRef.current) {
+      bottomRef.current.scrollIntoView({ behavior: 'smooth' });
     }
   }, [conversationHistory]);
 
   return (
-    <div className="flex-1 overflow-y-auto p-4" ref={containerRef}>
+    <div className="p-4">
       <h3 className="text-lg font-semibold mb-4">Conversation</h3>
 
       <div className="space-y-3">
@@ -49,6 +49,7 @@ const Conversation: React.FC<ConversationProps> = ({ conversationHistory }) => {
             No messages yet. Start a conversation!
           </p>
         )}
+        <div ref={bottomRef} />
       </div>
     </div>
   );

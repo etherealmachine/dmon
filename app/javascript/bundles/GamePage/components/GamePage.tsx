@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import GameNotes from '../../GameNotes/components/GameNotes';
 import Sidebar from '../../Sidebar/components/Sidebar';
+import PdfCards from './PdfCards';
 
 interface Action {
   name: string;
@@ -35,6 +36,14 @@ interface Note {
   history?: HistoryItem[];
 }
 
+interface Pdf {
+  id: number;
+  name: string;
+  description?: string;
+  image_count: number;
+  url: string;
+}
+
 interface PlanItem {
   description: string;
   completed: boolean;
@@ -56,6 +65,7 @@ interface ConversationMessage {
 
 interface GamePageProps {
   gameId: number;
+  pdfs: Pdf[];
   notes: Note[];
   selectedNoteIds: string[];
   plan: PlanItem[];
@@ -65,6 +75,7 @@ interface GamePageProps {
 
 const GamePage: React.FC<GamePageProps> = ({
   gameId,
+  pdfs,
   notes: initialNotes,
   selectedNoteIds: initialSelectedNoteIds,
   plan,
@@ -87,14 +98,17 @@ const GamePage: React.FC<GamePageProps> = ({
   return (
     <div className="flex h-[calc(100vh-4rem)]">
       {/* Main Panel */}
-      <div className="flex-1 overflow-y-auto p-8 bg-gray-50">
-        <div className="max-w-4xl mx-auto">
-          <GameNotes
-            gameId={gameId}
-            notes={initialNotes}
-            selectedNoteIds={selectedNoteGlobalIds}
-            onSelectionChange={handleSelectionChange}
-          />
+      <div className="flex-1 overflow-y-auto bg-gray-50">
+        <PdfCards pdfs={pdfs} gameId={gameId} />
+        <div className="p-8">
+          <div className="max-w-4xl mx-auto">
+            <GameNotes
+              gameId={gameId}
+              notes={initialNotes}
+              selectedNoteIds={selectedNoteGlobalIds}
+              onSelectionChange={handleSelectionChange}
+            />
+          </div>
         </div>
       </div>
 

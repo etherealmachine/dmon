@@ -151,9 +151,13 @@ const Sidebar: React.FC<SidebarProps> = ({ gameId, plan: initialPlan, model, con
   };
 
   return (
-    <div className="w-96 bg-white border-l border-gray-200 flex flex-col h-full">
-      <Conversation conversationHistory={conversationHistory} />
+    <div className="w-96 bg-white border-l border-gray-200 flex flex-col h-[calc(100vh-4rem)]">
+      {/* Scrollable conversation area */}
+      <div className="flex-1 overflow-y-auto">
+        <Conversation conversationHistory={conversationHistory} />
+      </div>
 
+      {/* Plan section - fixed at bottom above input */}
       {plan && plan.length > 0 && (
         <div className="border-t border-gray-200 p-4 flex-shrink-0">
           <h4 className="text-sm font-semibold text-gray-700 mb-3">Current Plan</h4>
@@ -180,6 +184,7 @@ const Sidebar: React.FC<SidebarProps> = ({ gameId, plan: initialPlan, model, con
         </div>
       )}
 
+      {/* Chat input - fixed at bottom */}
       <ChatInput
         gameId={gameId}
         model={model}
