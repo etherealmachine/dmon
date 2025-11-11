@@ -18,10 +18,33 @@
                    when 'cff' then 'opentype'
                    else 'truetype'
                    end
+
+          # Infer font-weight from font name
+          font_name = font.metadata['font_name']
+          font_weight = if font_name.match?(/Bold/i) && !font_name.match?(/Semi/i)
+                          '700'
+                        elsif font_name.match?(/SemiBold|Semibold/i)
+                          '600'
+                        elsif font_name.match?(/Medium/i)
+                          '500'
+                        elsif font_name.match?(/Light/i) && !font_name.match?(/Ultra/i)
+                          '300'
+                        elsif font_name.match?(/UltraLight|Thin/i)
+                          '100'
+                        elsif font_name.match?(/Black|Heavy/i)
+                          '900'
+                        else
+                          '400'
+                        end
+
+          # Infer font-style from font name
+          font_style = font_name.match?(/Italic|Obl/i) ? 'italic' : 'normal'
         %>
         @font-face {
           font-family: '<%= font.metadata['font_name'] %>';
           src: url('<%= rails_blob_path(font, only_path: true) %>') format('<%= format %>');
+          font-weight: <%= font_weight %>;
+          font-style: <%= font_style %>;
         }
       <% end %>
     <% end %>

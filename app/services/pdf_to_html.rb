@@ -38,108 +38,91 @@ class PdfToHtml
 
   def extract_and_attach_fonts(tempfile, doc)
     Dir.mktmpdir do |font_dir|
+      # Build font mapping using mutool and pdffonts
+      font_mapping = build_font_mapping(tempfile.path)
+
+      # Extract fonts using mutool
       Dir.chdir(font_dir) do
         system('mutool', 'extract', tempfile.path)
 
-        # Get list of font names used in the HTML
-        html_fonts = doc.to_html.scan(/font-family:([^;]+)/).flatten.map(&:strip).uniq
-        used_html_fonts = Set.new
+        # Fix fonts missing cmap tables using FontForge
+        fix_extracted_fonts(font_dir)
 
-        # First pass: match fonts by name similarity
-        font_files = Dir.glob(File.join(font_dir, 'font-*.{ttf,cff,otf}')).sort
-        font_files.each do |font_path|
-          matched_html_font = match_font_to_html(font_path, html_fonts, used_html_fonts)
+        # Attach fonts using the mapping
+        font_mapping.each do |font_name, info|
+          font_pattern = File.join(font_dir, "#{info[:expected_filename]}.{ttf,cff,otf,cid}")
+          font_files = Dir.glob(font_pattern)
 
-          if matched_html_font
-            used_html_fonts.add(matched_html_font)
-            attach_font(font_path, matched_html_font)
+          if font_files.any?
+            attach_font(font_files.first, font_name, info[:base_font_name])
           end
         end
-
-        # Second pass: assign remaining unmatched fonts to remaining HTML fonts
-        assign_remaining_fonts(font_dir, html_fonts, used_html_fonts)
       end
     end
   end
 
-  def match_font_to_html(font_path, html_fonts, used_html_fonts)
-    filename = File.basename(font_path)
+  def build_font_mapping(pdf_path)
+    # Use pdffonts to get the list of fonts with their object IDs
+    pdffonts_output = `pdffonts "#{pdf_path}" 2>&1`
+    lines = pdffonts_output.split("\n")
 
-    # Try to extract font name from the font file itself using fc-scan
-    fc_output = `fc-scan #{font_path} 2>&1`
-    base_font_name = fc_output.match(/fullname: "([^"]+)"/)[1] rescue nil
+    # Skip header lines (first 2 lines)
+    font_lines = lines[2..-1] || []
 
-    return nil unless base_font_name
+    font_mapping = {}
 
-    # Clean up the base font name for matching
-    clean_base = base_font_name.gsub(/\s+/, '').gsub(/Regular$/, '').gsub(/-Regular$/, '')
+    font_lines.each do |line|
+      # Parse the line to extract font name and object ID
+      # Format: name  type  encoding  emb sub uni object ID
+      parts = line.split(/\s+/)
+      next if parts.empty?
 
-    # Try exact match first
-    matched_html_font = html_fonts.find do |hf|
-      next if used_html_fonts.include?(hf)
+      font_name = parts[0]
+      object_id = parts[-2].to_i # Second to last is the object number
 
-      clean_html = hf.gsub(/\s+/, '')
-      font_suffix = clean_html.split('+').last
+      next if object_id == 0
 
-      # Exact match: the suffix exactly matches the base name
-      clean_base == font_suffix
-    end
+      # Get the FontDescriptor object ID from mutool show
+      mutool_output = `mutool show "#{pdf_path}" #{object_id} 2>&1`
 
-    # If no exact match, try partial match with preference for longest common substring
-    if !matched_html_font
-      best_match = nil
-      best_score = 0
+      # Try to find FontDescriptor directly (Type1 fonts)
+      font_descriptor_id = nil
+      if mutool_output =~ /\/FontDescriptor\s+(\d+)\s+0\s+R/
+        font_descriptor_id = $1.to_i
+      # For Type0 fonts, we need to follow DescendantFonts
+      # Match both array format [ 445 0 R ] and direct reference format 445 0 R
+      elsif mutool_output =~ /\/DescendantFonts\s+(?:\[\s*)?(\d+)\s+0\s+R/
+        descendant_id = $1.to_i
+        descendant_output = `mutool show "#{pdf_path}" #{descendant_id} 2>&1`
 
-      html_fonts.each do |hf|
-        next if used_html_fonts.include?(hf)
-
-        clean_html = hf.gsub(/\s+/, '')
-        font_suffix = clean_html.split('+').last
-
-        # Score based on how well they match
-        # Higher score for longer matching substrings
-        if clean_base.include?(font_suffix)
-          score = font_suffix.length
-        elsif font_suffix.include?(clean_base)
-          score = clean_base.length
-        else
-          score = 0
+        # If descendant is an array, get the first element
+        if descendant_output =~ /^\[\s*(\d+)\s+0\s+R/
+          actual_descendant_id = $1.to_i
+          descendant_output = `mutool show "#{pdf_path}" #{actual_descendant_id} 2>&1`
         end
 
-        if score > best_score
-          best_score = score
-          best_match = hf
+        if descendant_output =~ /\/FontDescriptor\s+(\d+)\s+0\s+R/
+          font_descriptor_id = $1.to_i
         end
       end
 
-      matched_html_font = best_match if best_score > 0
-    end
+      if font_descriptor_id
+        # Extract base font name from mutool output (for metadata)
+        base_font_name = nil
+        if mutool_output =~ /\/BaseFont\s+\/([^\s]+)/
+          base_font_name = $1.gsub(/#([0-9A-F]{2})/) { $1.hex.chr }
+        end
 
-    matched_html_font
-  end
-
-  def assign_remaining_fonts(font_dir, html_fonts, used_html_fonts)
-    remaining_html_fonts = html_fonts - used_html_fonts.to_a
-    return unless remaining_html_fonts.any?
-
-    font_files = Dir.glob(File.join(font_dir, 'font-*.{ttf,cff,otf}')).sort
-
-    font_files.each do |font_path|
-      filename = File.basename(font_path)
-
-      # Skip if already attached
-      next if @pdf.fonts.any? { |f| f.filename.to_s == filename }
-
-      # Assign to next remaining HTML font
-      if remaining_html_fonts.any?
-        matched_html_font = remaining_html_fonts.shift
-
-        fc_output = `fc-scan #{font_path} 2>&1`
-        base_font_name = fc_output.match(/fullname: "([^"]+)"/)[1] rescue nil
-
-        attach_font(font_path, matched_html_font, base_font_name)
+        font_mapping[font_name] = {
+          object_id: object_id,
+          font_descriptor_id: font_descriptor_id,
+          expected_filename: "font-#{font_descriptor_id.to_s.rjust(4, '0')}",
+          base_font_name: base_font_name
+        }
       end
     end
+
+    font_mapping
   end
 
   def attach_font(font_path, font_name, base_font_name = nil)
@@ -151,6 +134,16 @@ class PdfToHtml
       base_font_name = fc_output.match(/fullname: "([^"]+)"/)[1] rescue nil
     end
 
+    # Convert fonts to OTF for consistency and browser compatibility
+    # Browsers cannot load standalone CFF files - they need to be wrapped in OpenType
+    if filename.end_with?('.cff')
+      converted_path = convert_to_otf(font_path, font_name)
+      if converted_path
+        font_path = converted_path
+        filename = File.basename(converted_path)
+      end
+    end
+
     @pdf.fonts.attach(
       io: File.open(font_path),
       filename: filename,
@@ -160,6 +153,83 @@ class PdfToHtml
         base_font_name: base_font_name
       }
     )
+  end
+
+  def fix_extracted_fonts(font_dir)
+    # Fix fonts that are missing cmap tables after extraction
+    # This is necessary because mutool extract strips the cmap table
+    Dir.glob(File.join(font_dir, '*.{ttf,otf}')).each do |font_path|
+      rebuild_font_cmap(font_path)
+    end
+  end
+
+  def rebuild_font_cmap(font_path)
+    # Use FontForge to rebuild the cmap table for fonts extracted from PDFs
+    # Maps glyphs by their index (GID) to match pdftohtml's character code output
+    fontforge_script = <<~PYTHON
+      import fontforge
+      import sys
+
+      try:
+          font = fontforge.open("#{font_path}")
+
+          # Check if font already has a valid cmap
+          has_valid_cmap = False
+          try:
+              # Try to access the encoding - if it has mappings, cmap is valid
+              mapped_glyphs = [g for g in font.glyphs() if g.unicode > 0]
+              if font.encoding and len(mapped_glyphs) > 10:
+                  has_valid_cmap = True
+          except:
+              pass
+
+          if not has_valid_cmap:
+              # Set encoding to UnicodeFull
+              font.encoding = "UnicodeFull"
+
+              # Map glyphs by their position/GID to match pdftohtml behavior
+              # pdftohtml uses glyph indices as character codes in the HTML output
+              # For symbol fonts without proper encoding, this preserves the mapping
+              glyph_list = list(font.glyphs())
+
+              for gid, glyph in enumerate(glyph_list):
+                  # Map glyph at position gid to Unicode codepoint gid
+                  # This way if pdftohtml outputs char code 0xD0 (208), it will use glyph at index 208
+                  if glyph.glyphname != ".notdef" and gid < 0x10000:
+                      glyph.unicode = gid
+
+          # Generate the font (this will create proper cmap table)
+          font.generate("#{font_path}")
+          font.close()
+      except Exception as e:
+          sys.stderr.write(str(e))
+          sys.exit(1)
+    PYTHON
+
+    # Run fontforge with Python script
+    system('fontforge', '-lang=py', '-c', fontforge_script, out: File::NULL, err: File::NULL)
+  end
+
+  def convert_to_otf(font_path, font_name)
+    # Use fontforge to convert CFF fonts to OTF
+    # This ensures consistent format and can fix encoding issues
+    # FontForge will automatically add missing tables like cmap
+    otf_path = font_path.sub(/\.(cff|ttf|otf)$/, '.otf')
+
+    # FontForge script that opens font and generates OTF
+    # The Generate command will add necessary tables including cmap
+    fontforge_script = <<~SCRIPT
+      Open('#{font_path}')
+      Generate('#{otf_path}')
+    SCRIPT
+
+    # Try using fontforge command line
+    result = system('fontforge', '-lang=ff', '-c', fontforge_script, out: File::NULL, err: File::NULL)
+
+    return otf_path if result && File.exist?(otf_path)
+
+    # If fontforge not available or conversion fails, return nil to use original
+    nil
   end
 
   def attach_images(tmpdir, doc)
