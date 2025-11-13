@@ -29,26 +29,17 @@ class PdfsController < ApplicationController
       redirect_to root_path, alert: "You don't have access to this game."
       return
     end
+    @images = @pdf.images.filter { |image| image.blob.metadata['source'] == 'pdfimages' }
   end
 
-  def reparse
+  def run_job
     unless @game.user == current_user
       redirect_to root_path, alert: "You don't have access to this game."
       return
     end
 
-    ParsePdfJob.perform_later(@pdf.id, process_metadata: true)
-    redirect_to game_pdf_path(@game, @pdf), notice: "PDF reparse has been queued. This may take a few moments."
-  end
-
-  def reclassify_images
-    unless @game.user == current_user
-      redirect_to root_path, alert: "You don't have access to this game."
-      return
-    end
-
-    ClassifyImagesJob.perform_later(@pdf.id, reclassify: true)
-    redirect_to game_pdf_path(@game, @pdf), notice: "Image reclassification has been queued. This may take a few moments."
+    PdfJob.perform_later(@pdf.id, params[:method])
+    redirect_to game_pdf_path(@game, @pdf), notice: "PDF job has been queued. This may take a few moments."
   end
 
   def html

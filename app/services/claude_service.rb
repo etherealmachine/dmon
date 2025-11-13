@@ -26,6 +26,7 @@ class ClaudeService
 
   # Send a chat request with the given messages and tools
   # @param messages [Array<Hash>] Array of message hashes with :role and :content
+  #   Content can be a string or an array of content blocks (text, image)
   # @param system_message [String, nil] Optional system message
   # @param tools [Array<Hash>] Array of tool definitions
   # @param stream [Boolean] Whether to stream the response (default: false)
@@ -164,8 +165,11 @@ class ClaudeService
           content: content
         }]
       else
-        # Handle text content
-        if content.present?
+        # Handle content array (already formatted with text/image blocks)
+        if content.is_a?(Array)
+          formatted[:content] = content
+        # Handle string content
+        elsif content.present?
           formatted[:content] << {
             type: "text",
             text: content

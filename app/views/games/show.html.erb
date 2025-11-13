@@ -24,7 +24,8 @@
       created_at: note.created_at.iso8601,
       stats: note.stats,
       actions: note.actions,
-      history: note.history
+      history: note.history,
+      images: note.images.attached? ? note.images.map { |img| rails_blob_path(img) } : []
     }
   },
   selectedNoteIds: params[:context_items] || [],

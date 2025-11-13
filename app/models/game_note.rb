@@ -23,6 +23,7 @@
 #
 class GameNote < ApplicationRecord
   belongs_to :game
+  has_many_attached :images, dependent: :destroy
 
   validates :game, presence: true
   validates :note_type, presence: true

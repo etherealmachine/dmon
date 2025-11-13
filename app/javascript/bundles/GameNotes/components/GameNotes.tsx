@@ -32,6 +32,7 @@ interface Note {
   stats?: Record<string, any>;
   actions?: Action[];
   history?: HistoryItem[];
+  images?: string[];
 }
 
 interface GameNotesProps {
@@ -236,6 +237,7 @@ const GameNotes: React.FC<GameNotesProps> = ({ gameId, notes: initialNotes, sele
               stats={note.stats}
               actions={note.actions}
               history={note.history}
+              images={note.images}
               isSelected={selectedIds.has(note.id)}
               gameId={gameId}
               onSelectionChange={handleSelectionChange}

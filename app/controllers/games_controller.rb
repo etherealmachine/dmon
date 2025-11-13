@@ -1,6 +1,6 @@
 class GamesController < ApplicationController
   before_action :authenticate_user!
-  before_action :set_game, only: [:show, :agent]
+  before_action :set_game, only: [:show, :agent, :available_images]
 
   def index
     @games = current_user.games.order(created_at: :desc)
@@ -70,6 +70,27 @@ class GamesController < ApplicationController
       @conversation_history = agent.conversation_history || []
       @tool_definitions = agent.unified_tool_definitions
     end
+  end
+
+  def available_images
+    # Get all PDFs for this game with their images
+    pdfs_with_images = @game.pdfs.map do |pdf|
+      next unless pdf.images.attached?
+
+      {
+        id: pdf.id,
+        name: pdf.name,
+        images: pdf.images.map.with_index do |image, index|
+          {
+            pdf_id: pdf.id,
+            image_index: index,
+            url: rails_blob_path(image)
+          }
+        end
+      }
+    end.compact
+
+    render json: { pdfs: pdfs_with_images }
   end
 
   private

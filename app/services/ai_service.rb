@@ -92,6 +92,10 @@ class AiService
   # Unified chat interface that automatically selects the right provider
   # @param model [String] The model name
   # @param messages [Array<Hash>] Array of message hashes with :role and :content
+  #   Supports ActiveStorage attachments directly:
+  #   - {role: "user", content: "text"}
+  #   - {role: "user", content: "text", images: [<ActiveStorage::Attachment>]}
+  #   - {role: "user", content: [{type: "text", text: "..."}, {type: "image", source: <ActiveStorage::Attachment>}]}
   # @param system_message [String, nil] Optional system message
   # @param tools [Array<Hash>] Array of tool definitions
   # @param stream [Boolean] Whether to stream the response
@@ -101,8 +105,11 @@ class AiService
     service = create(model: model, api_key: api_key)
     provider = provider_for(model)
 
+    # Normalize messages to handle ActiveStorage attachments
+    normalized_messages = normalize_messages(messages, provider)
+
     service.chat(
-      messages: messages,
+      messages: normalized_messages,
       system_message: system_message,
       tools: tools,
       stream: stream,
@@ -116,5 +123,81 @@ class AiService
       response_body: e.response_body,
       provider: provider
     )
+  end
+
+  # Normalize messages to handle different input formats and convert
+  # ActiveStorage attachments to provider-specific formats
+  # @param messages [Array<Hash>] Input messages
+  # @param provider [Symbol] Target provider (:openai or :claude)
+  # @return [Array<Hash>] Normalized messages
+  def self.normalize_messages(messages, provider)
+    messages.map do |message|
+      normalized = message.dup
+
+      # If message has images key with ActiveStorage attachments, convert to content array
+      if message[:images].present?
+        images = Array(message[:images])
+
+        # Start with text content
+        content_array = []
+        if message[:content].present?
+          content_array << { type: "text", text: message[:content] }
+        end
+
+        # Add images
+        images.each do |image|
+          content_array << { type: "image", source: image }
+        end
+
+        normalized[:content] = content_array
+        normalized.delete(:images)
+      end
+
+      # Process content if it's an array with image sources
+      if normalized[:content].is_a?(Array)
+        normalized[:content] = normalized[:content].map do |item|
+          if item[:type] == "image" && (item[:source].is_a?(ActiveStorage::Attached::One) || item[:source].respond_to?(:download))
+            # Convert ActiveStorage attachment to provider-specific format
+            convert_image_to_format(item[:source], provider)
+          else
+            item
+          end
+        end
+      end
+
+      normalized
+    end
+  end
+
+  # Convert an ActiveStorage attachment to provider-specific image format
+  # @param attachment [ActiveStorage::Attachment, ActiveStorage::Attached] The image attachment
+  # @param provider [Symbol] Target provider (:openai or :claude)
+  # @return [Hash] Provider-specific image content block
+  def self.convert_image_to_format(attachment, provider)
+    # Download and convert to base64
+    image_data = attachment.download
+    base64_image = Base64.strict_encode64(image_data)
+    content_type = attachment.content_type
+
+    case provider
+    when :openai
+      {
+        type: "image_url",
+        image_url: {
+          url: "data:#{content_type};base64,#{base64_image}"
+        }
+      }
+    when :claude
+      {
+        type: "image",
+        source: {
+          type: "base64",
+          media_type: content_type,
+          data: base64_image
+        }
+      }
+    else
+      raise ArgumentError, "Unknown provider: #{provider}"
+    end
   end
 end

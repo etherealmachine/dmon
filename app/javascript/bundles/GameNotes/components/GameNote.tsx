@@ -33,6 +33,7 @@ interface Note {
   stats?: Record<string, any>;
   actions?: Action[];
   history?: HistoryItem[];
+  images?: string[];
 }
 
 interface GameNoteProps {
@@ -45,6 +46,7 @@ interface GameNoteProps {
   stats?: Record<string, any>;
   actions?: Action[];
   history?: HistoryItem[];
+  images?: string[];
   isSelected: boolean;
   gameId: number;
   onSelectionChange: (noteId: number, selected: boolean) => void;
@@ -62,6 +64,7 @@ const GameNote: React.FC<GameNoteProps> = ({
   stats,
   actions,
   history,
+  images,
   isSelected,
   gameId,
   onSelectionChange,
@@ -75,6 +78,12 @@ const GameNote: React.FC<GameNoteProps> = ({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [editingStatKey, setEditingStatKey] = useState<string | null>(null);
   const [editingStatValue, setEditingStatValue] = useState<string>('');
+  const [showImagePicker, setShowImagePicker] = useState(false);
+  const [availableImages, setAvailableImages] = useState<Array<{
+    pdf_id: number;
+    pdf_name: string;
+    images: Array<{ pdf_id: number; image_index: number; url: string }>;
+  }>>([]);
 
   const noteTypes = [
     { label: 'Note', value: 'note' },
@@ -358,6 +367,95 @@ const GameNote: React.FC<GameNoteProps> = ({
     }
   };
 
+  const handleOpenImagePicker = async () => {
+    setShowImagePicker(true);
+
+    // Fetch available images if not already loaded
+    if (availableImages.length === 0) {
+      try {
+        const response = await fetch(`/games/${gameId}/available_images`, {
+          headers: {
+            'X-CSRF-Token': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
+            'Accept': 'application/json'
+          },
+        });
+
+        const data = await response.json();
+
+        if (data.pdfs) {
+          setAvailableImages(data.pdfs.map((pdf: any) => ({
+            pdf_id: pdf.id,
+            pdf_name: pdf.name,
+            images: pdf.images
+          })));
+        }
+      } catch (error) {
+        console.error('Error fetching available images:', error);
+        alert('Failed to load available images');
+      }
+    }
+  };
+
+  const handleAttachImage = async (pdfId: number, imageIndex: number) => {
+    const formData = new FormData();
+    formData.append('pdf_id', pdfId.toString());
+    formData.append('image_index', imageIndex.toString());
+
+    try {
+      const response = await fetch(`/games/${gameId}/game_notes/${id}/attach_image`, {
+        method: 'POST',
+        body: formData,
+        headers: {
+          'X-CSRF-Token': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
+          'Accept': 'application/json'
+        },
+      });
+
+      const data = await response.json();
+
+      if (data.success && data.note) {
+        onUpdate(data.note);
+        setShowImagePicker(false);
+      } else {
+        alert(`Failed to attach image: ${data.error || 'Unknown error'}`);
+      }
+    } catch (error) {
+      console.error('Error attaching image:', error);
+      alert('Failed to attach image');
+    }
+  };
+
+  const handleDetachImage = async (imageIndex: number) => {
+    if (!confirm('Are you sure you want to remove this image?')) {
+      return;
+    }
+
+    const formData = new FormData();
+    formData.append('image_index', imageIndex.toString());
+
+    try {
+      const response = await fetch(`/games/${gameId}/game_notes/${id}/detach_image`, {
+        method: 'POST',
+        body: formData,
+        headers: {
+          'X-CSRF-Token': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
+          'Accept': 'application/json'
+        },
+      });
+
+      const data = await response.json();
+
+      if (data.success && data.note) {
+        onUpdate(data.note);
+      } else {
+        alert(`Failed to remove image: ${data.error || 'Unknown error'}`);
+      }
+    } catch (error) {
+      console.error('Error removing image:', error);
+      alert('Failed to remove image');
+    }
+  };
+
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
     return date.toLocaleDateString('en-US', {
@@ -415,6 +513,44 @@ const GameNote: React.FC<GameNoteProps> = ({
 
           <div className="text-sm text-gray-900 prose prose-sm max-w-none">
             <ReactMarkdown remarkPlugins={[remarkGfm]}>{content}</ReactMarkdown>
+          </div>
+
+          <div className="mt-4 pt-4 border-t border-gray-200">
+            <div className="flex items-center justify-between mb-2">
+              <div className="text-xs font-medium text-gray-500 uppercase">Images</div>
+              <button
+                onClick={handleOpenImagePicker}
+                className="text-xs text-blue-600 hover:text-blue-800 font-medium"
+              >
+                + Add Image
+              </button>
+            </div>
+            {images && images.length > 0 ? (
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                {images.map((imageUrl, index) => (
+                  <div key={index} className="group relative aspect-square rounded overflow-hidden border border-gray-200">
+                    <img
+                      src={imageUrl}
+                      alt={`Note image ${index + 1}`}
+                      className="w-full h-full object-cover hover:scale-105 transition-transform cursor-pointer"
+                      onClick={() => window.open(imageUrl, '_blank')}
+                    />
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDetachImage(index);
+                      }}
+                      className="absolute top-1 right-1 bg-red-500 hover:bg-red-600 text-white text-base font-bold w-6 h-6 rounded flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                      title="Remove image"
+                    >
+                      ×
+                    </button>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-xs text-gray-400 italic">No images attached</div>
+            )}
           </div>
 
           {stats && Object.keys(stats).length > 0 && (
@@ -617,6 +753,52 @@ const GameNote: React.FC<GameNoteProps> = ({
             </div>
           </div>
         </>
+      )}
+
+      {/* Image Picker Modal */}
+      {showImagePicker && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" onClick={() => setShowImagePicker(false)}>
+          <div className="bg-white rounded-lg p-6 max-w-4xl max-h-[80vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold">Select an Image from PDFs</h3>
+              <button
+                onClick={() => setShowImagePicker(false)}
+                className="text-gray-500 hover:text-gray-700 text-2xl font-bold"
+              >
+                ×
+              </button>
+            </div>
+
+            {availableImages.length > 0 ? (
+              <div className="space-y-6">
+                {availableImages.map((pdf) => (
+                  <div key={pdf.pdf_id}>
+                    <h4 className="text-sm font-medium text-gray-700 mb-3">{pdf.pdf_name}</h4>
+                    <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-2">
+                      {pdf.images.map((image) => (
+                        <div
+                          key={`${image.pdf_id}-${image.image_index}`}
+                          className="relative aspect-square rounded overflow-hidden border-2 border-gray-200 hover:border-blue-500 cursor-pointer transition-colors"
+                          onClick={() => handleAttachImage(image.pdf_id, image.image_index)}
+                        >
+                          <img
+                            src={image.url}
+                            alt={`PDF image ${image.image_index + 1}`}
+                            className="w-full h-full object-cover"
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center text-gray-500 py-8">
+                <p>No images available from PDFs</p>
+              </div>
+            )}
+          </div>
+        </div>
       )}
     </div>
   );

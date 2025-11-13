@@ -22,49 +22,22 @@
 class Pdf < ApplicationRecord
   belongs_to :game
   has_one_attached :pdf
-  has_many_attached :images
+  has_many_attached :images, dependent: :purge
   has_many_attached :fonts
 
   validates :pdf, presence: true, on: :create
   validate :pdf_content_type, on: :create
 
   after_commit :enqueue_jobs, on: :create
+  before_destroy :cleanup_shared_image_attachments
 
-  def extract_images
-    return unless pdf.attached?
-
-    # Create a temporary directory for extraction
-    Dir.mktmpdir do |tmpdir|
-      # Save PDF to temp file
-      pdf_path = File.join(tmpdir, 'input.pdf')
-      File.binwrite(pdf_path, pdf.download)
-
-      # Extract images using pdfimages
-      # -all: extract all image types
-      output_prefix = File.join(tmpdir, 'image')
-      system('pdfimages', '-all', pdf_path, output_prefix)
-
-      # Attach all extracted images
-      Dir.glob("#{output_prefix}*").each_with_index do |image_path, index|
-        next unless File.file?(image_path)
-
-        # Determine content type based on file extension
-        ext = File.extname(image_path).downcase
-        content_type = case ext
-                      when '.jpg', '.jpeg' then 'image/jpeg'
-                      when '.png' then 'image/png'
-                      when '.ppm' then 'image/x-portable-pixmap'
-                      when '.pbm' then 'image/x-portable-bitmap'
-                      else 'application/octet-stream'
-                      end
-
-        images.attach(
-          io: File.open(image_path),
-          filename: "image_#{index}#{ext}",
-          content_type: content_type
-        )
-      end
-    end
+  def parse_pdf
+    extract_text
+    refine_text
+    extract_html
+    extract_images
+    extract_metadata
+    classify_images
   end
 
   def refine_text
@@ -72,7 +45,6 @@ class Pdf < ApplicationRecord
   end
 
   def classify_images(reclassify: false)
-    extract_images if images.empty?
     ClassifyImages.new(self, reclassify:).call
   end
 
@@ -80,25 +52,63 @@ class Pdf < ApplicationRecord
     ExtractMetadata.new(self).call
   end
 
-  def parse_pdf(process_metadata: true)
-    # Extract text and HTML from the PDF
+  def extract_text
     pdf.open do |tempfile|
-      # Extract text with pdf2txt.py
       text = `pdf2txt.py #{tempfile.path}`
       update!(text_content: text)
     end
-    refine_text
-    extract_html
-    extract_metadata if process_metadata
   end
 
   def extract_html
     PdfToHtml.new(self).call
   end
 
+  def extract_images
+    pdf.open do |tempfile|
+      Dir.mktmpdir do |tmpdir|
+        # Use PDF filename (without extension) as the base for output prefix
+        base_filename = File.basename(pdf.filename.to_s, '.pdf')
+        output_prefix = File.join(tmpdir, base_filename)
+
+        # Extract images using pdfimages
+        system('pdfimages', '-all', tempfile.path, output_prefix)
+
+        # Attach all extracted images
+        Dir.glob("#{output_prefix}*").sort.each_with_index do |image_path, index|
+          next unless File.file?(image_path)
+
+          ext = File.extname(image_path).downcase
+          # Use Marcel to detect content type from file content
+          content_type = Marcel::MimeType.for(Pathname.new(image_path))
+
+          filename = "#{base_filename}_#{index}#{ext}"
+
+          # Check for duplicate: same source, filename, and file size
+          file_size = File.size(image_path)
+          existing = images.find do |img|
+            img.metadata['source'] == 'pdfimages' &&
+              img.filename.to_s == filename &&
+              img.byte_size == file_size
+          end
+
+          next if existing
+
+          images.attach(
+            io: File.open(image_path),
+            filename: filename,
+            content_type: content_type,
+            metadata: {
+              source: 'pdfimages',
+              extraction_index: index
+            }
+          )
+        end
+      end
+    end
+  end
+
   def enqueue_jobs
-    ParsePdfJob.perform_later(id)
-    # ClassifyImagesJob will be enqueued by ParsePdfJob after text is ready
+    PdfJob.perform_later(id, :parse_pdf)
   end
 
   private
@@ -109,5 +119,23 @@ class Pdf < ApplicationRecord
     if pdf.content_type != 'application/pdf'
       errors.add(:pdf, 'must be a PDF file')
     end
+  end
+
+  # Remove any GameNote attachments that reference this PDF's image blobs
+  # This prevents orphaned attachments after the PDF's images are purged
+  def cleanup_shared_image_attachments
+    return unless images.attached?
+
+    # Get all blob IDs from this PDF's images
+    blob_ids = images.map(&:blob_id)
+
+    # Find and destroy all ActiveStorage::Attachment records that:
+    # 1. Belong to GameNote records
+    # 2. Reference these blob IDs
+    # 3. Are NOT the original attachments on this PDF
+    ActiveStorage::Attachment
+      .where(record_type: 'GameNote', blob_id: blob_ids)
+      .where.not(record_id: id, record_type: 'Pdf')
+      .destroy_all
   end
 end

@@ -1,7 +1,7 @@
 class GameNotesController < ApplicationController
   before_action :authenticate_user!
   before_action :set_game
-  before_action :set_game_note, only: [:update, :destroy, :call_action, :clear_history, :update_stat, :delete_stat, :delete_action, :delete_history_item]
+  before_action :set_game_note, only: [:update, :destroy, :call_action, :clear_history, :update_stat, :delete_stat, :delete_action, :delete_history_item, :attach_image, :detach_image]
 
   def create
     @game_note = @game.game_notes.build(game_note_params)
@@ -110,6 +110,38 @@ class GameNotesController < ApplicationController
     end
   end
 
+  def attach_image
+    pdf_id = params[:pdf_id]
+    image_index = params[:image_index].to_i
+
+    pdf = @game.pdfs.find_by(id: pdf_id)
+
+    respond_to do |format|
+      if pdf.nil?
+        format.json { render json: { success: false, error: "PDF not found" }, status: :not_found }
+      elsif image_index < 0 || image_index >= pdf.images.count
+        format.json { render json: { success: false, error: "Invalid image index" }, status: :unprocessable_entity }
+      else
+        # Attach the blob from the PDF's image to this note
+        @game_note.images.attach(pdf.images[image_index].blob)
+        format.json { render json: { success: true, note: note_json(@game_note) } }
+      end
+    end
+  end
+
+  def detach_image
+    image_index = params[:image_index].to_i
+
+    respond_to do |format|
+      if image_index < 0 || image_index >= @game_note.images.count
+        format.json { render json: { success: false, error: "Invalid image index" }, status: :unprocessable_entity }
+      else
+        @game_note.images[image_index].purge
+        format.json { render json: { success: true, note: note_json(@game_note) } }
+      end
+    end
+  end
+
   private
 
   def set_game
@@ -134,7 +166,8 @@ class GameNotesController < ApplicationController
       created_at: note.created_at.iso8601,
       stats: note.stats,
       actions: note.actions,
-      history: note.history
+      history: note.history,
+      images: note.images.attached? ? note.images.map { |img| rails_blob_path(img) } : []
     }
   end
 end

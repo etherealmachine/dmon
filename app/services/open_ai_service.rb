@@ -23,6 +23,7 @@ class OpenAiService
 
   # Send a chat request with the given messages and tools
   # @param messages [Array<Hash>] Array of message hashes with :role and :content
+  #   Content can be a string or an array of content blocks (text, image_url)
   # @param system_message [String, nil] Optional system message
   # @param tools [Array<Hash>] Array of tool definitions
   # @param stream [Boolean] Whether to stream the response (default: false)

@@ -34,6 +34,7 @@ interface Note {
   stats?: Record<string, any>;
   actions?: Action[];
   history?: HistoryItem[];
+  images?: string[];
 }
 
 interface Pdf {

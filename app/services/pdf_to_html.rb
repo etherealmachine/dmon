@@ -4,8 +4,9 @@ class PdfToHtml
   end
 
   def call
-    @pdf.images.destroy_all
-    @pdf.fonts.destroy_all
+    # Only remove images and fonts from previous pdftohtml conversions
+    @pdf.images.select { |img| img.metadata['source'] == 'pdftohtml' }.each(&:purge)
+    @pdf.fonts.each(&:purge)
 
     @pdf.pdf.open do |tempfile|
       convert_to_html(tempfile)
@@ -149,6 +150,7 @@ class PdfToHtml
       filename: filename,
       content_type: Marcel::MimeType.for(Pathname.new(font_path)),
       metadata: {
+        source: 'pdftohtml',
         font_name: font_name,
         base_font_name: base_font_name
       }
@@ -239,13 +241,28 @@ class PdfToHtml
     # Attach images to Active Storage and rewrite URLs in HTML
     image_files.each do |image_path|
       filename = File.basename(image_path)
+      file_size = File.size(image_path)
 
-      # Attach the image
-      blob = @pdf.images.attach(
-        io: File.open(image_path),
-        filename: filename,
-        content_type: Marcel::MimeType.for(Pathname.new(image_path))
-      ).last
+      # Check for duplicate: same source, filename, and file size
+      existing = @pdf.images.find do |img|
+        img.metadata['source'] == 'pdftohtml' &&
+          img.filename.to_s == filename &&
+          img.byte_size == file_size
+      end
+
+      blob = if existing
+        existing
+      else
+        # Attach the image with metadata
+        @pdf.images.attach(
+          io: File.open(image_path),
+          filename: filename,
+          content_type: Marcel::MimeType.for(Pathname.new(image_path)),
+          metadata: {
+            source: 'pdftohtml'
+          }
+        ).last
+      end
 
       # Replace the local filename with the Active Storage URL using Nokogiri
       if blob

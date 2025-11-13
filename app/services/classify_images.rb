@@ -9,6 +9,9 @@ class ClassifyImages
     raise "No images to classify" if @pdf.images.blank?
 
     @pdf.images.each do |image|
+      # Skip images not from pdfimages
+      next unless image.blob.metadata['source'] == 'pdfimages'
+
       # Skip if already classified unless reclassify flag is set
       next if already_classified?(image) && !@reclassify
 
@@ -24,14 +27,15 @@ class ClassifyImages
   end
 
   def classify_image(image)
-    # Convert image to base64
-    image_data = image.download
-    base64_image = Base64.strict_encode64(image_data)
-    content_type = image.content_type
-
     begin
-      # Build the message with image and prompt
-      messages = build_image_message(base64_image, content_type)
+      # Build the message with image - the unified API will handle provider-specific formatting
+      messages = [
+        {
+          role: "user",
+          content: classification_prompt,
+          images: [image]
+        }
+      ]
 
       # Get JSON schema for structured output
       tools = [classification_tool_schema]
@@ -76,50 +80,6 @@ class ClassifyImages
           'classification_error': e.message,
         )
       )
-    end
-  end
-
-  def build_image_message(base64_image, content_type)
-    # For OpenAI, we use their specific format
-    if @provider == :openai
-      [
-        {
-          role: "user",
-          content: [
-            {
-              type: "text",
-              text: classification_prompt
-            },
-            {
-              type: "image_url",
-              image_url: {
-                url: "data:#{content_type};base64,#{base64_image}"
-              }
-            }
-          ]
-        }
-      ]
-    else
-      # For Claude, we use their format with base64 directly
-      [
-        {
-          role: "user",
-          content: [
-            {
-              type: "text",
-              text: classification_prompt
-            },
-            {
-              type: "image",
-              source: {
-                type: "base64",
-                media_type: content_type,
-                data: base64_image
-              }
-            }
-          ]
-        }
-      ]
     end
   end
 

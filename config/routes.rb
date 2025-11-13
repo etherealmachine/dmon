@@ -11,6 +11,7 @@ Rails.application.routes.draw do
   resources :games, only: [:index, :new, :create, :show] do
     get :agent, on: :member
     post :agent, on: :member
+    get :available_images, on: :member
     resources :game_notes, only: [:create, :update, :destroy] do
       post :call_action, on: :member
       post :clear_history, on: :member
@@ -18,11 +19,12 @@ Rails.application.routes.draw do
       post :delete_stat, on: :member
       post :delete_action, on: :member
       post :delete_history_item, on: :member
+      post :attach_image, on: :member
+      post :detach_image, on: :member
     end
     resources :pdfs, only: [:show, :create] do
       get :html, on: :member
-      post :reparse, on: :member
-      post :reclassify_images, on: :member
+      post :run_job, on: :member
     end
   end
 
