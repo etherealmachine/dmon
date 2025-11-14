@@ -1,22 +1,6 @@
 require "anthropic"
 
 class ClaudeService
-  class Error < StandardError
-    attr_reader :original_error, :response_body
-
-    def initialize(message, original_error: nil, response_body: nil)
-      super(message)
-      @original_error = original_error
-      @response_body = response_body
-    end
-
-    def detailed_message
-      parts = [message]
-      parts << "Response body: #{response_body}" if response_body.present?
-      parts << "Original error: #{original_error.class} - #{original_error.message}" if original_error
-      parts.join("\n")
-    end
-  end
 
   def initialize(api_key: nil, model: "claude-3-5-sonnet-20241022")
     @api_key = api_key || ENV['ANTHROPIC_API_KEY']
@@ -53,18 +37,6 @@ class ClaudeService
       response = @client.messages.create(**parameters)
       parse_response(response)
     end
-  rescue StandardError => e
-    error_message = "Claude API request failed: #{e.message}"
-    response_body = nil
-
-    # Try to extract error details if available
-    if e.respond_to?(:data)
-      response_body = e.data
-    elsif e.respond_to?(:response_body)
-      response_body = e.response_body
-    end
-
-    raise Error.new(error_message, original_error: e, response_body: response_body)
   end
 
   private

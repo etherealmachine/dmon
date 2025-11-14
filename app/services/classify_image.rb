@@ -1,85 +1,44 @@
-class ClassifyImages
-  def initialize(pdf, reclassify: false)
-    @pdf = pdf
-    @reclassify = reclassify
-    @service = @pdf.game.user.ai_service
+class ClassifyImage
+  def initialize(image, model, text_context:)
+    @image = image
+    @model = model
+    @text_context = text_context
   end
 
-  def call
-    raise "No images to classify" if @pdf.images.blank?
+  def classify
+    messages = [
+      {
+        role: "user",
+        content: classification_prompt,
+        images: [@image]
+      }
+    ]
 
-    @pdf.images.each do |image|
-      # Skip images not from pdfimages
-      next unless image.blob.metadata['source'] == 'pdfimages'
+    tools = [classification_tool_schema]
 
-      # Skip if already classified unless reclassify flag is set
-      next if already_classified?(image) && !@reclassify
+    response = AiService.chat(
+      model: @model,
+      messages: messages,
+      tools: tools,
+      stream: false
+    )
 
-      classify_image(image)
-    end
-  end
+    if response[:tool_calls]&.any?
+      tool_call = response[:tool_calls].first
+      classification_data = tool_call[:arguments]
 
-  private
-
-  def already_classified?(image)
-    image.blob.metadata['classification'].present? &&
-      image.blob.metadata['classified_at'].present?
-  end
-
-  def classify_image(image)
-    begin
-      # Build the message with image - the unified API will handle provider-specific formatting
-      messages = [
-        {
-          role: "user",
-          content: classification_prompt,
-          images: [image]
-        }
-      ]
-
-      # Get JSON schema for structured output
-      tools = [classification_tool_schema]
-
-      # Call the service with structured output
-      response = @service.chat(
-        messages: messages,
-        tools: tools,
-        stream: false
-      )
-
-      # Extract the structured classification from tool calls
-      if response[:tool_calls]&.any?
-        tool_call = response[:tool_calls].first
-        classification_data = tool_call[:arguments]
-
-        # Update the image metadata
-        image.blob.update(
-          metadata: image.blob.metadata.merge(
-            'classification': classification_data['classification'],
-            'description': classification_data['description'],
-            'classified_at': Time.current.iso8601
-          )
-        )
-        Rails.logger.info "Classified image #{image.filename}: #{classification_data['classification']}"
-      else
-        raise "No structured classification returned from API"
-      end
-    rescue AiService::Error => e
-      Rails.logger.error "Failed to classify image #{image.filename}: #{e.detailed_message}"
-      # Mark as failed but don't crash
-      image.blob.update(
-        metadata: image.blob.metadata.merge(
-          'classification_error': e.message,
+      @image.blob.update(
+        metadata: @image.blob.metadata.merge(
+          'classification_error' => nil,
+          'classification' => classification_data['classification'],
+          'description' => classification_data['description'],
+          'classified_at' => Time.current.iso8601
         )
       )
-    rescue => e
-      Rails.logger.error "Failed to classify image #{image.filename}: #{e.class} - #{e.message}"
-      # Mark as failed but don't crash
-      image.blob.update(
-        metadata: image.blob.metadata.merge(
-          'classification_error': e.message,
-        )
-      )
+
+      Rails.logger.info "Classified image #{@image.filename}: #{classification_data['classification']}"
+    else
+      raise "No structured classification returned from API"
     end
   end
 
@@ -88,7 +47,7 @@ class ClassifyImages
       You are analyzing an image extracted from a tabletop RPG PDF.
 
       CONTEXT FROM THE PDF:
-      #{@pdf.text_content}
+      #{@text_context}
 
       Use this context to better understand the purpose and content of the image.
       For example:

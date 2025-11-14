@@ -24,10 +24,6 @@ class GameAgent < ApplicationRecord
   after_initialize :ensure_conversation_history
   after_initialize :ensure_plan
 
-  def ai_service
-    @ai_service ||= game.user.ai_service
-  end
-
   def call(input, context_items: [], &block)
     # Store input and context items for slash commands and context to access
     @current_input = input
@@ -63,7 +59,8 @@ class GameAgent < ApplicationRecord
 
       if stream
         # Streaming mode
-        ai_service.chat(
+        AiService.chat(
+          model: game.user.preferred_model,
           messages: conversation_history,
           system_message: context_string,
           tools: unified_tool_definitions,
@@ -84,7 +81,8 @@ class GameAgent < ApplicationRecord
         end
       else
         # Non-streaming mode
-        response = ai_service.chat(
+        response = AiService.chat(
+          model: game.user.preferred_model,
           messages: conversation_history,
           system_message: context_string,
           tools: unified_tool_definitions
@@ -137,7 +135,8 @@ class GameAgent < ApplicationRecord
 
         if stream
           # Stream final response
-          ai_service.chat(
+          AiService.chat(
+            model: game.user.preferred_model,
             messages: conversation_history,
             system_message: context_string,
             tools: unified_tool_definitions,
@@ -156,7 +155,8 @@ class GameAgent < ApplicationRecord
           end
         else
           # Non-streaming final response
-          final_response = ai_service.chat(
+          final_response = AiService.chat(
+            model: game.user.preferred_model,
             messages: conversation_history,
             system_message: context_string,
             tools: unified_tool_definitions

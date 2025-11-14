@@ -67,7 +67,4 @@ class User < ApplicationRecord
     Rails.cache.read("user:#{id}:preferred_model") || "gpt-5-nano"
   end
 
-  def ai_service
-    @ai_service ||= AiService.create(model: preferred_model)
-  end
 end

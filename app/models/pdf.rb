@@ -45,7 +45,21 @@ class Pdf < ApplicationRecord
   end
 
   def classify_images(reclassify: false)
-    ClassifyImages.new(self, reclassify:).call
+    raise "No images to classify" if images.blank?
+
+    images.each do |image|
+      # Skip images not from pdfimages
+      next unless image.blob.metadata['source'] == 'pdfimages'
+
+      # Skip if already classified unless reclassify flag is set
+      next if already_classified?(image) && !reclassify
+
+      ClassifyImage.new(
+        image,
+        game.user.preferred_model,
+        text_context: text_content
+      ).classify
+    end
   end
 
   def extract_metadata
@@ -112,6 +126,11 @@ class Pdf < ApplicationRecord
   end
 
   private
+
+  def already_classified?(image)
+    image.blob.metadata['classification'].present? &&
+      image.blob.metadata['classified_at'].present?
+  end
 
   def pdf_content_type
     return unless pdf.attached?

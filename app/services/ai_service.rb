@@ -79,14 +79,6 @@ class AiService
     else
       raise ArgumentError, "Unknown provider: #{provider}"
     end
-  rescue OpenAiService::Error, ClaudeService::Error => e
-    # Wrap provider-specific errors in our unified error
-    raise Error.new(
-      e.message,
-      original_error: e.original_error,
-      response_body: e.response_body,
-      provider: provider
-    )
   end
 
   # Unified chat interface that automatically selects the right provider
@@ -100,8 +92,9 @@ class AiService
   # @param tools [Array<Hash>] Array of tool definitions
   # @param stream [Boolean] Whether to stream the response
   # @param api_key [String, nil] Optional API key
+  # @param max_retries [Integer] Maximum number of retries for rate limit errors (default: 3)
   # @return [Hash] Unified response with :content, :tool_calls, etc.
-  def self.chat(model:, messages:, system_message: nil, tools: [], stream: false, api_key: nil, &block)
+  def self.chat(model:, messages:, system_message: nil, tools: [], stream: false, api_key: nil, max_retries: 3, &block)
     service = create(model: model, api_key: api_key)
     provider = provider_for(model)
 
@@ -114,14 +107,6 @@ class AiService
       tools: tools,
       stream: stream,
       &block
-    )
-  rescue OpenAiService::Error, ClaudeService::Error => e
-    # Wrap provider-specific errors in our unified error
-    raise Error.new(
-      e.message,
-      original_error: e.original_error,
-      response_body: e.response_body,
-      provider: provider
     )
   end
 
@@ -156,9 +141,14 @@ class AiService
       # Process content if it's an array with image sources
       if normalized[:content].is_a?(Array)
         normalized[:content] = normalized[:content].map do |item|
-          if item[:type] == "image" && (item[:source].is_a?(ActiveStorage::Attached::One) || item[:source].respond_to?(:download))
-            # Convert ActiveStorage attachment to provider-specific format
-            convert_image_to_format(item[:source], provider)
+          if item[:type] == "image" && item[:source].present?
+            # Check if source has the methods we need
+            if item[:source].respond_to?(:download) && item[:source].respond_to?(:content_type)
+              # Convert ActiveStorage attachment to provider-specific format
+              convert_image_to_format(item[:source], provider)
+            else
+              raise ArgumentError, "Image source must respond to :download and :content_type methods, got #{item[:source].class}"
+            end
           else
             item
           end

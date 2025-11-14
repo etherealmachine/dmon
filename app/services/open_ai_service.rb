@@ -1,20 +1,4 @@
 class OpenAiService
-  class Error < StandardError
-    attr_reader :original_error, :response_body
-
-    def initialize(message, original_error: nil, response_body: nil)
-      super(message)
-      @original_error = original_error
-      @response_body = response_body
-    end
-
-    def detailed_message
-      parts = [message]
-      parts << "Response body: #{response_body}" if response_body.present?
-      parts << "Original error: #{original_error.class} - #{original_error.message}" if original_error
-      parts.join("\n")
-    end
-  end
 
   def initialize(api_key: nil, model: "gpt-4o-mini")
     @api_key = api_key || ENV['OPENAI_API_KEY']
@@ -53,32 +37,6 @@ class OpenAiService
       response = client.chat(parameters: parameters)
       parse_response(response)
     end
-  rescue Faraday::BadRequestError => e
-    response_body = e.response[:body]
-
-    # Parse response body if it's a string
-    parsed_body = if response_body.is_a?(String)
-      JSON.parse(response_body) rescue response_body
-    else
-      response_body
-    end
-
-    error_message = if parsed_body.is_a?(Hash) && parsed_body.dig("error", "message")
-      "OpenAI API request failed: #{parsed_body['error']['message']}"
-    else
-      "OpenAI API request failed: #{parsed_body}"
-    end
-    raise Error.new(error_message, original_error: e, response_body: parsed_body)
-  rescue StandardError => e
-    error_message = "OpenAI API request failed: #{e.message}"
-    response_body = nil
-
-    # Try to extract error details if available
-    if e.respond_to?(:response) && e.response
-      response_body = e.response[:body] rescue nil
-    end
-
-    raise Error.new(error_message, original_error: e, response_body: response_body)
   end
 
   private
