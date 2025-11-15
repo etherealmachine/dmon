@@ -14,6 +14,14 @@
       url: game_pdf_path(@game, pdf)
     }
   },
+  musicTracks: @game.music_tracks.map { |track|
+    {
+      id: track.id,
+      filename: track.filename.to_s,
+      byte_size: track.byte_size,
+      url: game_music_track_path(@game, track)
+    }
+  },
   notes: @game.game_notes.chronological.map { |note|
     {
       id: note.id,

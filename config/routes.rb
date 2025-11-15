@@ -26,6 +26,7 @@ Rails.application.routes.draw do
       get :html, on: :member
       post :run_job, on: :member
     end
+    resources :music_tracks, only: [:show, :create, :destroy]
   end
 
   # Define your application routes per the DSL in https://guides.rubyonrails.org/routing.html

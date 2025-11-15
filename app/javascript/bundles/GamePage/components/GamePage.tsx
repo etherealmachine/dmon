@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import GameNotes from '../../GameNotes/components/GameNotes';
 import Sidebar from '../../Sidebar/components/Sidebar';
 import PdfCards from './PdfCards';
+import MusicTracks from './MusicTracks';
 
 interface Action {
   name: string;
@@ -45,6 +46,13 @@ interface Pdf {
   url: string;
 }
 
+interface MusicTrack {
+  id: number;
+  filename: string;
+  byte_size: number;
+  url: string;
+}
+
 interface PlanItem {
   description: string;
   completed: boolean;
@@ -67,6 +75,7 @@ interface ConversationMessage {
 interface GamePageProps {
   gameId: number;
   pdfs: Pdf[];
+  musicTracks: MusicTrack[];
   notes: Note[];
   selectedNoteIds: string[];
   plan: PlanItem[];
@@ -77,6 +86,7 @@ interface GamePageProps {
 const GamePage: React.FC<GamePageProps> = ({
   gameId,
   pdfs,
+  musicTracks,
   notes: initialNotes,
   selectedNoteIds: initialSelectedNoteIds,
   plan,
@@ -101,6 +111,7 @@ const GamePage: React.FC<GamePageProps> = ({
       {/* Main Panel */}
       <div className="flex-1 overflow-y-auto bg-gray-50">
         <PdfCards pdfs={pdfs} gameId={gameId} />
+        <MusicTracks musicTracks={musicTracks} gameId={gameId} />
         <div className="p-8">
           <div className="max-w-4xl mx-auto">
             <GameNotes

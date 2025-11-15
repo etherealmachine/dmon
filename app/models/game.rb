@@ -20,6 +20,7 @@ class Game < ApplicationRecord
   has_many :pdfs, dependent: :destroy
   has_many :game_notes, dependent: :destroy
   has_one :game_agent, dependent: :destroy
+  has_many_attached :music_tracks, dependent: :destroy
 
   validates :user, presence: true
 
