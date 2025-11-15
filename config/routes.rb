@@ -25,6 +25,8 @@ Rails.application.routes.draw do
     resources :pdfs, only: [:show, :create] do
       get :html, on: :member
       post :run_job, on: :member
+      post :delete_images, on: :member
+      post :upload_images, on: :member
     end
     resources :music_tracks, only: [:show, :create, :destroy]
   end

@@ -101,13 +101,26 @@ class AiService
     # Normalize messages to handle ActiveStorage attachments
     normalized_messages = normalize_messages(messages, provider)
 
-    service.chat(
-      messages: normalized_messages,
-      system_message: system_message,
-      tools: tools,
-      stream: stream,
-      &block
-    )
+    retry_count = 0
+    max_retries = 3
+    while retry_count < max_retries
+      begin
+        return service.chat(
+          messages: normalized_messages,
+          system_message: system_message,
+          tools: tools,
+          stream: stream,
+          &block
+        )
+      rescue Faraday::TooManyRequestsError => e
+        Rails.logger.error "Rate limit exceeded: #{e.message}"
+        retry_count += 1
+        if retry_count >= max_retries
+          raise e
+        end
+        sleep (1+retry_count)**2 # Exponential backoff
+      end
+    end
   end
 
   # Normalize messages to handle different input formats and convert

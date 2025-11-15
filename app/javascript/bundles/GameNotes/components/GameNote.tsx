@@ -511,34 +511,99 @@ const GameNote: React.FC<GameNoteProps> = ({
             </div>
           )}
 
+          {/* Profile Image and Stats Section */}
+          {(images && images.length > 0) || (stats && Object.keys(stats).length > 0) ? (
+            <div className="mb-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* Stats Column */}
+              {stats && Object.keys(stats).length > 0 && (
+                <div>
+                  <div className="text-xs font-medium text-gray-500 uppercase mb-2">Stats</div>
+                  <div className="grid grid-cols-2 gap-2">
+                    {Object.entries(stats).map(([key, value]) => (
+                      <div key={key} className="group relative p-2 bg-blue-50 rounded border border-blue-200">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDeleteStat(key);
+                          }}
+                          className="absolute top-1 right-1 bg-red-500 hover:bg-red-600 text-white text-base font-bold w-5 h-5 rounded flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                          title="Delete stat"
+                        >
+                          ×
+                        </button>
+                        <div className="text-xs text-gray-600 mb-0.5 pr-6">{key}</div>
+                        {editingStatKey === key ? (
+                          <input
+                            type="text"
+                            value={editingStatValue}
+                            onChange={(e) => setEditingStatValue(e.target.value)}
+                            onKeyDown={(e) => handleStatKeyDown(e, key)}
+                            onBlur={() => handleStatUpdate(key)}
+                            autoFocus
+                            className="text-lg font-semibold text-gray-900 bg-white border border-blue-300 rounded px-1 w-full"
+                          />
+                        ) : (
+                          <div
+                            className="text-lg font-semibold text-gray-900 cursor-pointer hover:bg-blue-100 rounded px-1"
+                            onClick={() => handleStatClick(key, value)}
+                            title="Click to edit"
+                          >
+                            {String(value)}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Profile Image Column */}
+              {images && images.length > 0 && (
+                <div className="relative rounded-lg overflow-hidden border-2 border-gray-300 group max-h-96 flex items-center justify-center bg-gray-50">
+                  <img
+                    src={images[0]}
+                    alt="Profile"
+                    className="max-h-96 w-full object-contain hover:scale-105 transition-transform cursor-pointer"
+                    onClick={() => window.open(images[0], '_blank')}
+                  />
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleDetachImage(0);
+                    }}
+                    className="absolute top-2 right-2 bg-red-500 hover:bg-red-600 text-white text-base font-bold w-7 h-7 rounded flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                    title="Remove profile image"
+                  >
+                    ×
+                  </button>
+                </div>
+              )}
+            </div>
+          ) : null}
+
           <div className="text-sm text-gray-900 prose prose-sm max-w-none">
             <ReactMarkdown remarkPlugins={[remarkGfm]}>{content}</ReactMarkdown>
           </div>
 
-          <div className="mt-4 pt-4 border-t border-gray-200">
-            <div className="flex items-center justify-between mb-2">
-              <div className="text-xs font-medium text-gray-500 uppercase">Images</div>
-              <button
-                onClick={handleOpenImagePicker}
-                className="text-xs text-blue-600 hover:text-blue-800 font-medium"
-              >
-                + Add Image
-              </button>
-            </div>
-            {images && images.length > 0 ? (
+          {/* Additional Images Section (excluding first image which is used as profile) */}
+          {images && images.length > 1 && (
+            <div className="mt-4 pt-4 border-t border-gray-200">
+              <div className="flex items-center justify-between mb-2">
+                <div className="text-xs font-medium text-gray-500 uppercase">Additional Images</div>
+              </div>
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                {images.map((imageUrl, index) => (
-                  <div key={index} className="group relative aspect-square rounded overflow-hidden border border-gray-200">
+                {images.slice(1).map((imageUrl, index) => (
+                  <div key={index + 1} className="group relative aspect-square rounded overflow-hidden border border-gray-200">
                     <img
                       src={imageUrl}
-                      alt={`Note image ${index + 1}`}
+                      alt={`Note image ${index + 2}`}
                       className="w-full h-full object-cover hover:scale-105 transition-transform cursor-pointer"
                       onClick={() => window.open(imageUrl, '_blank')}
                     />
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
-                        handleDetachImage(index);
+                        handleDetachImage(index + 1);
                       }}
                       className="absolute top-1 right-1 bg-red-500 hover:bg-red-600 text-white text-base font-bold w-6 h-6 rounded flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
                       title="Remove image"
@@ -548,50 +613,33 @@ const GameNote: React.FC<GameNoteProps> = ({
                   </div>
                 ))}
               </div>
-            ) : (
-              <div className="text-xs text-gray-400 italic">No images attached</div>
-            )}
-          </div>
+            </div>
+          )}
 
-          {stats && Object.keys(stats).length > 0 && (
+          {/* Add Image Button */}
+          {(!images || images.length === 0) && (
             <div className="mt-4 pt-4 border-t border-gray-200">
-              <div className="text-xs font-medium text-gray-500 uppercase mb-2">Stats</div>
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                {Object.entries(stats).map(([key, value]) => (
-                  <div key={key} className="group relative p-2 bg-blue-50 rounded border border-blue-200">
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleDeleteStat(key);
-                      }}
-                      className="absolute top-1 right-1 bg-red-500 hover:bg-red-600 text-white text-base font-bold w-5 h-5 rounded flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
-                      title="Delete stat"
-                    >
-                      ×
-                    </button>
-                    <div className="text-xs text-gray-600 mb-0.5 pr-6">{key}</div>
-                    {editingStatKey === key ? (
-                      <input
-                        type="text"
-                        value={editingStatValue}
-                        onChange={(e) => setEditingStatValue(e.target.value)}
-                        onKeyDown={(e) => handleStatKeyDown(e, key)}
-                        onBlur={() => handleStatUpdate(key)}
-                        autoFocus
-                        className="text-lg font-semibold text-gray-900 bg-white border border-blue-300 rounded px-1 w-full"
-                      />
-                    ) : (
-                      <div
-                        className="text-lg font-semibold text-gray-900 cursor-pointer hover:bg-blue-100 rounded px-1"
-                        onClick={() => handleStatClick(key, value)}
-                        title="Click to edit"
-                      >
-                        {String(value)}
-                      </div>
-                    )}
-                  </div>
-                ))}
+              <div className="flex items-center justify-between mb-2">
+                <div className="text-xs font-medium text-gray-500 uppercase">Images</div>
+                <button
+                  onClick={handleOpenImagePicker}
+                  className="text-xs text-blue-600 hover:text-blue-800 font-medium"
+                >
+                  + Add Image
+                </button>
               </div>
+              <div className="text-xs text-gray-400 italic">No images attached</div>
+            </div>
+          )}
+
+          {images && images.length > 0 && (
+            <div className="mt-2 text-right">
+              <button
+                onClick={handleOpenImagePicker}
+                className="text-xs text-blue-600 hover:text-blue-800 font-medium"
+              >
+                + Add More Images
+              </button>
             </div>
           )}
 

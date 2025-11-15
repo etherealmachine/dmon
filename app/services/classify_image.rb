@@ -32,6 +32,7 @@ class ClassifyImage
           'classification_error' => nil,
           'classification' => classification_data['classification'],
           'description' => classification_data['description'],
+          'recommendation' => classification_data['recommendation'],
           'classified_at' => Time.current.iso8601
         )
       )
@@ -54,7 +55,8 @@ class ClassifyImage
       - If the PDF is about a specific adventure, images may be maps or NPCs from that adventure
       - If the PDF mentions specific locations, images may depict those locations
       - If the PDF describes monsters or characters, images may be their illustrations
-      - Use the text to identify what makes this image valuable or not for players
+      - Use the text to try to identify what's in the image and use the names from the text in the image description.
+      - Make a recommendation for the user on whether to keep the image or not. PDFs can have lots of images that are incomplete or not useful. We only want to keep the images that we're going to show to the players and are useful for the game.
 
       Please classify this image and provide a brief description. Use the classify_image tool to return your structured response.
 
@@ -95,7 +97,12 @@ class ClassifyImage
           description: {
             type: "string",
             description: "A brief 1-2 sentence description of the image content"
-          }
+          },
+          recommendation: {
+            type: "string",
+            enum: ["keep", "remove"],
+            description: "A recommendation for the user on whether to keep the image or not. If the image is not valuable, recommend removing it."
+          },
         },
         required: ["classification", "description"]
       }

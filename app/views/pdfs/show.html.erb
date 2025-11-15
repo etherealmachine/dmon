@@ -63,19 +63,58 @@
   <% end %>
 
   <!-- Images Grid -->
-  <% if @images.any? %>
-    <div class="bg-white rounded-lg shadow-md p-6">
-      <h3 class="text-lg font-semibold mb-4">Images (<%= @images.count %>)</h3>
-      <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+  <div class="bg-white rounded-lg shadow-md p-6">
+    <!-- Upload Images Section -->
+    <div class="mb-6 border-b border-gray-200 pb-6">
+      <h3 class="text-lg font-semibold mb-4">Upload Images</h3>
+      <%= form_with url: upload_images_game_pdf_path(@game, @pdf), method: :post, multipart: true, id: "upload-images-form" do |f| %>
+        <div class="flex items-center gap-4">
+          <div class="flex-1">
+            <input type="file" name="images[]" id="image-upload-input" multiple accept="image/*" class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100">
+          </div>
+          <button type="submit" id="upload-btn" class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded font-medium text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed" disabled>
+            Upload <span id="upload-count"></span>
+          </button>
+        </div>
+        <p class="text-xs text-gray-500 mt-2">Select one or more images to upload. Supported formats: JPG, PNG, GIF, WebP</p>
+      <% end %>
+    </div>
+
+    <% if @images.any? %>
+      <div class="flex justify-between items-center mb-4">
+        <h3 class="text-lg font-semibold">Images (<%= @images.count %>)</h3>
+        <div class="flex gap-2">
+          <button id="select-all-btn" class="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded font-medium text-sm transition-colors">
+            Select All
+          </button>
+          <%= form_with url: delete_images_game_pdf_path(@game, @pdf), method: :post, id: "delete-images-form", class: "inline" do |f| %>
+            <div id="selected-images-input"></div>
+            <button type="submit" id="delete-selected-btn" class="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded font-medium text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed" disabled>
+              Delete Selected (<span id="selected-count">0</span>)
+            </button>
+          <% end %>
+        </div>
+      </div>
+      <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4" id="images-grid">
         <% @images.each do |image| %>
-          <div class="border border-gray-200 rounded-lg overflow-hidden hover:shadow-lg transition-shadow">
-            <%= image_tag image, class: "w-full h-48 object-cover" %>
+          <div class="border border-gray-200 rounded-lg overflow-hidden hover:shadow-lg transition-shadow image-card" data-image-id="<%= image.id %>">
+            <div class="relative">
+              <%= image_tag image, class: "w-full h-48 object-cover" %>
+              <div class="absolute top-2 right-2">
+                <input type="checkbox" class="image-checkbox w-5 h-5 rounded border-gray-300" data-image-id="<%= image.id %>">
+              </div>
+            </div>
             <div class="p-3 bg-gray-50">
               <% if image.blob.metadata['classification'].present? %>
-                <div class="mb-2">
+                <div class="mb-2 flex items-center gap-2">
                   <span class="inline-block px-2 py-1 text-xs font-semibold rounded bg-blue-100 text-blue-800">
                     <%= image.blob.metadata['classification'] %>
                   </span>
+                  <% if image.blob.metadata['recommendation'] == 'remove' %>
+                    <span class="inline-block px-2 py-1 text-xs font-semibold rounded bg-red-100 text-red-800">
+                      Remove
+                    </span>
+                  <% end %>
                 </div>
               <% end %>
               <% if image.blob.metadata['description'].present? %>
@@ -87,6 +126,87 @@
           </div>
         <% end %>
       </div>
-    </div>
-  <% end %>
+    <% else %>
+      <p class="text-gray-500 italic">No images have been extracted or uploaded yet.</p>
+    <% end %>
+  </div>
 </div>
+
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    // File upload handling
+    const uploadInput = document.getElementById('image-upload-input');
+    const uploadBtn = document.getElementById('upload-btn');
+    const uploadCountSpan = document.getElementById('upload-count');
+
+    if (uploadInput && uploadBtn) {
+      uploadInput.addEventListener('change', function() {
+        const fileCount = this.files.length;
+        uploadBtn.disabled = fileCount === 0;
+
+        if (fileCount > 0) {
+          uploadCountSpan.textContent = `(${fileCount})`;
+        } else {
+          uploadCountSpan.textContent = '';
+        }
+      });
+    }
+
+    // Image deletion handling
+    const checkboxes = document.querySelectorAll('.image-checkbox');
+    const selectAllBtn = document.getElementById('select-all-btn');
+    const deleteBtn = document.getElementById('delete-selected-btn');
+    const selectedCountSpan = document.getElementById('selected-count');
+    const selectedImagesInput = document.getElementById('selected-images-input');
+    const deleteForm = document.getElementById('delete-images-form');
+
+    if (checkboxes.length > 0 && deleteBtn) {
+      function updateDeleteButton() {
+        const selectedCheckboxes = Array.from(checkboxes).filter(cb => cb.checked);
+        const count = selectedCheckboxes.length;
+
+        selectedCountSpan.textContent = count;
+        deleteBtn.disabled = count === 0;
+
+        // Update hidden input with selected image IDs
+        selectedImagesInput.innerHTML = '';
+        selectedCheckboxes.forEach(cb => {
+          const input = document.createElement('input');
+          input.type = 'hidden';
+          input.name = 'image_ids[]';
+          input.value = cb.dataset.imageId;
+          selectedImagesInput.appendChild(input);
+        });
+
+        // Update select all button text
+        if (count === checkboxes.length) {
+          selectAllBtn.textContent = 'Deselect All';
+        } else {
+          selectAllBtn.textContent = 'Select All';
+        }
+      }
+
+      // Handle checkbox changes
+      checkboxes.forEach(checkbox => {
+        checkbox.addEventListener('change', updateDeleteButton);
+      });
+
+      // Handle select all button
+      selectAllBtn.addEventListener('click', function() {
+        const allChecked = Array.from(checkboxes).every(cb => cb.checked);
+        checkboxes.forEach(cb => cb.checked = !allChecked);
+        updateDeleteButton();
+      });
+
+      // Handle form submission with confirmation
+      deleteForm.addEventListener('submit', function(e) {
+        const count = Array.from(checkboxes).filter(cb => cb.checked).length;
+        if (!confirm(`Are you sure you want to delete ${count} image(s)? This action cannot be undone.`)) {
+          e.preventDefault();
+        }
+      });
+
+      updateDeleteButton();
+    }
+  });
+</script>

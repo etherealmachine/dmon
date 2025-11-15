@@ -29,7 +29,28 @@ class PdfsController < ApplicationController
       redirect_to root_path, alert: "You don't have access to this game."
       return
     end
-    @images = @pdf.images.filter { |image| image.blob.metadata['source'] == 'pdfimages' }
+
+    # Get images and sort by classification and recommendation
+    images = @pdf.images.filter { |image| image.blob.metadata['source'] == 'pdfimages' }
+
+    # Define classification order (most valuable first)
+    classification_order = {
+      'map' => 1, 'character' => 2, 'monster' => 3, 'item' => 4,
+      'scene' => 5, 'handout' => 6, 'table' => 7, 'decorative' => 8,
+      'background' => 9, 'logo' => 10, 'artifact' => 11,
+      'silhouette' => 12, 'incomplete' => 13, 'other' => 14
+    }
+
+    @images = images.sort_by do |image|
+      classification = image.blob.metadata['classification'] || 'other'
+      recommendation = image.blob.metadata['recommendation'] || 'keep'
+
+      # Put "remove" recommendations at the end
+      recommendation_order = recommendation == 'remove' ? 1000 : 0
+
+      # Combine classification and recommendation for sorting
+      [recommendation_order, classification_order[classification] || 999]
+    end
   end
 
   def run_job
@@ -46,6 +67,54 @@ class PdfsController < ApplicationController
     unless @game.user == current_user
       redirect_to root_path, alert: "You don't have access to this game."
       return
+    end
+  end
+
+  def delete_images
+    unless @game.user == current_user
+      redirect_to root_path, alert: "You don't have access to this game."
+      return
+    end
+
+    image_ids = params[:image_ids] || []
+    deleted_count = 0
+
+    image_ids.each do |image_id|
+      image = @pdf.images.find_by(id: image_id)
+      if image
+        image.purge
+        deleted_count += 1
+      end
+    end
+
+    redirect_to game_pdf_path(@game, @pdf), notice: "#{deleted_count} image(s) deleted successfully."
+  end
+
+  def upload_images
+    unless @game.user == current_user
+      redirect_to root_path, alert: "You don't have access to this game."
+      return
+    end
+
+    uploaded_images = params[:images] || []
+    uploaded_count = 0
+
+    uploaded_images.each do |image_file|
+      if image_file.present?
+        @pdf.images.attach(
+          io: image_file,
+          filename: image_file.original_filename,
+          content_type: image_file.content_type,
+          metadata: { source: 'pdfimages' }
+        )
+        uploaded_count += 1
+      end
+    end
+
+    if uploaded_count > 0
+      redirect_to game_pdf_path(@game, @pdf), notice: "#{uploaded_count} image(s) uploaded successfully."
+    else
+      redirect_to game_pdf_path(@game, @pdf), alert: "No images were uploaded."
     end
   end
 
