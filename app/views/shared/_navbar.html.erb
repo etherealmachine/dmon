@@ -1,18 +1,52 @@
 <nav class="bg-gray-800 shadow-lg">
   <div class="max-w-full mx-auto px-4 sm:px-6 lg:px-8">
     <div class="flex justify-between items-center h-16">
-      <!-- App Name / Logo -->
-      <div class="flex-shrink-0">
-        <%= link_to root_path, class: "flex items-center" do %>
-          <span class="text-white text-xl font-bold">DMon</span>
+      <!-- Left side: App Name / Logo + Breadcrumbs -->
+      <div class="flex items-center space-x-4">
+        <div class="flex-shrink-0">
+          <%= link_to root_path, class: "flex items-center" do %>
+            <span class="text-white text-xl font-bold">DMon</span>
+          <% end %>
+        </div>
+
+        <% if breadcrumbs.any? %>
+          <!-- Breadcrumb Navigation -->
+          <nav class="flex items-center space-x-2 text-sm">
+            <% breadcrumbs.each_with_index do |crumb, index| %>
+              <% if index > 0 %>
+                <span class="text-gray-400">/</span>
+              <% end %>
+              <% if index == breadcrumbs.length - 1 %>
+                <!-- Current page (not a link) -->
+                <% is_game_page = defined?(@game) && @game.id.present? && !defined?(@pdf) && !defined?(@music_track) %>
+                <% if is_game_page %>
+                  <span class="text-white font-medium cursor-pointer hover:text-gray-300 transition-colors"
+                        id="game-name-display"
+                        onclick="editGameName()"
+                        title="Click to edit">
+                    <%= crumb[:text] %>
+                  </span>
+                  <input type="text"
+                         id="game-name-input"
+                         class="hidden bg-gray-700 text-white px-2 py-1 rounded border border-gray-600 focus:outline-none focus:border-blue-500"
+                         value="<%= @game.name %>"
+                         onblur="saveGameName()"
+                         onkeydown="handleGameNameKeydown(event)" />
+                <% else %>
+                  <span class="text-white font-medium"><%= crumb[:text] %></span>
+                <% end %>
+              <% else %>
+                <!-- Link to parent page -->
+                <%= link_to crumb[:text], crumb[:url], class: "text-gray-300 hover:text-white transition-colors" %>
+              <% end %>
+            <% end %>
+          </nav>
         <% end %>
       </div>
 
       <!-- Center Content (for page-specific content like titles) -->
       <div class="flex-1 flex justify-center items-center">
-        <% if content_for?(:navbar_center) %>
-          <%= yield :navbar_center %>
-        <% else %>
+        <% if !breadcrumbs.any? %>
           <!-- Default Navigation Links -->
           <div class="hidden md:block">
             <div class="flex items-baseline space-x-4">
@@ -40,3 +74,87 @@
     </div>
   </div>
 </nav>
+
+<% if defined?(@game) && !defined?(@pdf) && !defined?(@music_track) %>
+<script>
+  let originalGameName = '<%= j @game.name %>';
+
+  function editGameName() {
+    const display = document.getElementById('game-name-display');
+    const input = document.getElementById('game-name-input');
+
+    if (!display || !input) return;
+
+    display.classList.add('hidden');
+    input.classList.remove('hidden');
+    input.focus();
+    input.select();
+  }
+
+  function cancelEdit() {
+    const display = document.getElementById('game-name-display');
+    const input = document.getElementById('game-name-input');
+
+    if (!display || !input) return;
+
+    input.value = originalGameName;
+    input.classList.add('hidden');
+    display.classList.remove('hidden');
+  }
+
+  function saveGameName() {
+    const display = document.getElementById('game-name-display');
+    const input = document.getElementById('game-name-input');
+
+    if (!display || !input) return;
+
+    const newName = input.value.trim();
+
+    // If name hasn't changed or is empty, just cancel
+    if (newName === originalGameName || newName === '') {
+      cancelEdit();
+      return;
+    }
+
+    // Save via AJAX
+    fetch('<%= defined?(@game) && @game.id.present? ? game_path(@game) : '#' %>', {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRF-Token': document.querySelector('[name="csrf-token"]').content
+      },
+      body: JSON.stringify({
+        game: { name: newName }
+      })
+    })
+    .then(response => response.json())
+    .then(data => {
+      if (data.success) {
+        originalGameName = data.name;
+        display.textContent = data.name;
+        input.value = data.name;
+        input.classList.add('hidden');
+        display.classList.remove('hidden');
+      } else {
+        alert('Failed to update game name: ' + (data.errors || ['Unknown error']).join(', '));
+        cancelEdit();
+      }
+    })
+    .catch(error => {
+      console.error('Error:', error);
+      alert('Failed to update game name');
+      cancelEdit();
+    });
+  }
+
+  function handleGameNameKeydown(event) {
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      saveGameName();
+    } else if (event.key === 'Escape') {
+      event.preventDefault();
+      cancelEdit();
+    }
+  }
+</script>
+<% end %>

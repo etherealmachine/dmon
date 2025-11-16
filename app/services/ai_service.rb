@@ -119,6 +119,14 @@ class AiService
           raise e
         end
         sleep (1+retry_count)**2 # Exponential backoff
+      rescue Faraday::BadRequestError => e
+        error_message = e.response_body.dig("error", "message")
+        raise Error.new(
+          "Bad request: #{error_message}",
+          original_error: e,
+          response_body: e.response_body,
+          provider: provider
+        )
       end
     end
   end

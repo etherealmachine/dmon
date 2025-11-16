@@ -1,18 +1,11 @@
-<% content_for :navbar_center do %>
-  <h1 class="text-xl font-bold text-white"><%= @pdf.name %></h1>
-<% end %>
-
 <div class="max-w-6xl mx-auto p-8">
-  <!-- Back to Game Link -->
-  <div class="mb-6">
-    <%= link_to "← Back to Game", game_path(@game), class: "text-blue-600 hover:text-blue-800 font-medium" %>
-  </div>
-
   <!-- PDF Info Card -->
   <div class="bg-white rounded-lg shadow-md p-6 mb-6">
     <div class="flex justify-between items-start mb-4">
       <h2 class="text-2xl font-bold"><%= @pdf.name %></h2>
       <div class="flex gap-2">
+        <%= link_to "View HTML", html_game_pdf_path(@game, @pdf),
+            class: "bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded font-medium text-sm transition-colors" %>
         <%= button_to "Extract Text", run_job_game_pdf_path(@game, @pdf, method: :extract_text),
             method: :post,
             class: "bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded font-medium text-sm transition-colors",
@@ -97,11 +90,13 @@
       </div>
       <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4" id="images-grid">
         <% @images.each do |image| %>
-          <div class="border border-gray-200 rounded-lg overflow-hidden hover:shadow-lg transition-shadow image-card" data-image-id="<%= image.id %>">
+          <div class="border border-gray-200 rounded-lg overflow-hidden hover:shadow-lg transition-shadow image-card" data-image-id="<%= image.id %>" tabindex="0">
             <div class="relative">
-              <%= image_tag image, class: "w-full h-48 object-cover" %>
+              <%= link_to game_pdf_image_path(@game, @pdf, image.id), class: "block" do %>
+                <%= image_tag image, class: "w-full h-48 object-contain bg-gray-100" %>
+              <% end %>
               <div class="absolute top-2 right-2">
-                <input type="checkbox" class="image-checkbox w-5 h-5 rounded border-gray-300" data-image-id="<%= image.id %>">
+                <input type="checkbox" class="image-checkbox w-5 h-5 rounded border-gray-300" data-image-id="<%= image.id %>" onclick="event.stopPropagation()">
               </div>
             </div>
             <div class="p-3 bg-gray-50">
@@ -118,9 +113,13 @@
                 </div>
               <% end %>
               <% if image.blob.metadata['description'].present? %>
-                <p class="text-xs text-gray-600 line-clamp-3"><%= image.blob.metadata['description'] %></p>
+                <%= link_to game_pdf_image_path(@game, @pdf, image.id), class: "block" do %>
+                  <p class="text-xs text-gray-600 line-clamp-3"><%= image.blob.metadata['description'] %></p>
+                <% end %>
               <% else %>
-                <p class="text-xs text-gray-400 italic">No description available</p>
+                <%= link_to game_pdf_image_path(@game, @pdf, image.id), class: "block" do %>
+                  <p class="text-xs text-gray-400 italic">No description available</p>
+                <% end %>
               <% end %>
             </div>
           </div>
@@ -131,6 +130,13 @@
     <% end %>
   </div>
 </div>
+
+<style>
+  .image-card:focus {
+    outline: 3px solid #3b82f6;
+    outline-offset: 2px;
+  }
+</style>
 
 <script>
   document.addEventListener('DOMContentLoaded', function() {
@@ -154,11 +160,13 @@
 
     // Image deletion handling
     const checkboxes = document.querySelectorAll('.image-checkbox');
+    const imageCards = document.querySelectorAll('.image-card');
     const selectAllBtn = document.getElementById('select-all-btn');
     const deleteBtn = document.getElementById('delete-selected-btn');
     const selectedCountSpan = document.getElementById('selected-count');
     const selectedImagesInput = document.getElementById('selected-images-input');
     const deleteForm = document.getElementById('delete-images-form');
+    const imagesGrid = document.getElementById('images-grid');
 
     if (checkboxes.length > 0 && deleteBtn) {
       function updateDeleteButton() {
@@ -204,6 +212,94 @@
         if (!confirm(`Are you sure you want to delete ${count} image(s)? This action cannot be undone.`)) {
           e.preventDefault();
         }
+      });
+
+      // Keyboard navigation for image cards
+      function getGridColumns() {
+        // Get computed grid-template-columns to determine current number of columns
+        const gridStyle = window.getComputedStyle(imagesGrid);
+        const columns = gridStyle.gridTemplateColumns.split(' ').length;
+        return columns;
+      }
+
+      function getCurrentCardIndex(card) {
+        return Array.from(imageCards).indexOf(card);
+      }
+
+      function focusCard(card) {
+        if (card) {
+          card.focus();
+        }
+      }
+
+      // Handle clicking on card - focus it
+      imageCards.forEach(card => {
+        card.addEventListener('click', function(e) {
+          // Only focus if not clicking on checkbox or link
+          if (!e.target.matches('.image-checkbox') && !e.target.closest('a')) {
+            this.focus();
+          }
+        });
+
+        // Handle checkbox click - focus the card
+        const checkbox = card.querySelector('.image-checkbox');
+        if (checkbox) {
+          checkbox.addEventListener('change', function() {
+            card.focus();
+          });
+        }
+      });
+
+      // Handle keyboard navigation
+      imageCards.forEach(card => {
+        card.addEventListener('keydown', function(e) {
+          const currentIndex = getCurrentCardIndex(this);
+          const columns = getGridColumns();
+          let targetIndex = null;
+
+          switch(e.key) {
+            case 'ArrowLeft':
+              e.preventDefault();
+              targetIndex = currentIndex - 1;
+              if (targetIndex >= 0) {
+                focusCard(imageCards[targetIndex]);
+              }
+              break;
+
+            case 'ArrowRight':
+              e.preventDefault();
+              targetIndex = currentIndex + 1;
+              if (targetIndex < imageCards.length) {
+                focusCard(imageCards[targetIndex]);
+              }
+              break;
+
+            case 'ArrowUp':
+              e.preventDefault();
+              targetIndex = currentIndex - columns;
+              if (targetIndex >= 0) {
+                focusCard(imageCards[targetIndex]);
+              }
+              break;
+
+            case 'ArrowDown':
+              e.preventDefault();
+              targetIndex = currentIndex + columns;
+              if (targetIndex < imageCards.length) {
+                focusCard(imageCards[targetIndex]);
+              }
+              break;
+
+            case ' ':
+              e.preventDefault();
+              const checkbox = this.querySelector('.image-checkbox');
+              if (checkbox) {
+                checkbox.checked = !checkbox.checked;
+                checkbox.dispatchEvent(new Event('change'));
+              }
+              break;
+          }
+        });
       });
 
       updateDeleteButton();

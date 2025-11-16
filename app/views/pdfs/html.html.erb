@@ -3,8 +3,24 @@
   /* Zoom 3.0 is 2x the default 1.5, so we scale down by 0.5 to get back to 1.5 effective size */
   #pdf-content {
     transform: scale(0.5);
-    transform-origin: top left;
+    transform-origin: top center;
     width: 200%; /* Compensate for scale to maintain layout */
+    margin: 0 auto;
+  }
+
+  .zoom-control {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 1rem;
+    padding: 1rem;
+    background: #f3f4f6;
+    border-radius: 0.5rem;
+    margin-bottom: 1rem;
+  }
+
+  .zoom-control input[type="range"] {
+    width: 200px;
   }
 
   <% if @pdf.fonts.attached? %>
@@ -51,11 +67,38 @@
   <% end %>
 </style>
 
-<% if @pdf.html_content.present? %>
-  <div id="pdf-content">
-    <% doc = Nokogiri::HTML.fragment(@pdf.html_content) %>
-    <%= doc.to_html.html_safe %>
-  </div>
-<% else %>
-  <p class="text-gray-500">No HTML content available for this PDF.</p>
-<% end %>
+<div class="zoom-control">
+  <label for="zoom-slider">Zoom:</label>
+  <input type="range" id="zoom-slider" min="25" max="200" value="50" step="5">
+  <span id="zoom-value">50%</span>
+</div>
+
+<div style="display: flex; justify-content: center;">
+  <% if @pdf.html_content.present? %>
+    <div id="pdf-content">
+      <% doc = Nokogiri::HTML.fragment(@pdf.html_content) %>
+      <%= doc.to_html.html_safe %>
+    </div>
+  <% else %>
+    <p class="text-gray-500">No HTML content available for this PDF.</p>
+  <% end %>
+</div>
+
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    const slider = document.getElementById('zoom-slider');
+    const zoomValue = document.getElementById('zoom-value');
+    const pdfContent = document.getElementById('pdf-content');
+
+    if (slider && zoomValue && pdfContent) {
+      slider.addEventListener('input', function() {
+        const scale = this.value / 100;
+        const width = 100 / scale;
+
+        pdfContent.style.transform = `scale(${scale})`;
+        pdfContent.style.width = `${width}%`;
+        zoomValue.textContent = `${this.value}%`;
+      });
+    }
+  });
+</script>

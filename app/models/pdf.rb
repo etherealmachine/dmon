@@ -85,7 +85,9 @@ class Pdf < ApplicationRecord
         output_prefix = File.join(tmpdir, base_filename)
 
         # Extract images using pdfimages
-        system('pdfimages', '-all', tempfile.path, output_prefix)
+        # Use -png to convert all images to PNG format during extraction
+        # This avoids CCITT and other problematic formats
+        system('pdfimages', '-png', tempfile.path, output_prefix)
 
         # Attach all extracted images
         Dir.glob("#{output_prefix}*").sort.each_with_index do |image_path, index|
@@ -95,10 +97,35 @@ class Pdf < ApplicationRecord
           # Use Marcel to detect content type from file content
           content_type = Marcel::MimeType.for(Pathname.new(image_path))
 
-          filename = "#{base_filename}_#{index}#{ext}"
+          # Convert image to supported format if necessary
+          converted_path = image_path
+          converted_ext = ext
+
+          unless ['.png', '.jpg', '.jpeg', '.webp'].include?(ext)
+            begin
+              converted_ext = '.webp'
+              converted_path = "#{image_path}_converted#{converted_ext}"
+
+              # Use ImageMagick to convert the image (magick command for IMv7)
+              result = system('magick', image_path, converted_path)
+
+              unless result
+                Rails.logger.error("Failed to convert image #{image_path} to WEBP format. Skipping attachment.")
+                next
+              end
+
+              # Update content type for converted image
+              content_type = Marcel::MimeType.for(Pathname.new(converted_path))
+            rescue => e
+              Rails.logger.error("Error converting image #{image_path}: #{e.message}. Skipping attachment.")
+              next
+            end
+          end
+
+          filename = "#{base_filename}_#{index}#{converted_ext}"
 
           # Check for duplicate: same source, filename, and file size
-          file_size = File.size(image_path)
+          file_size = File.size(converted_path)
           existing = images.find do |img|
             img.metadata['source'] == 'pdfimages' &&
               img.filename.to_s == filename &&
@@ -108,7 +135,7 @@ class Pdf < ApplicationRecord
           next if existing
 
           images.attach(
-            io: File.open(image_path),
+            io: File.open(converted_path),
             filename: filename,
             content_type: content_type,
             metadata: {

@@ -1,6 +1,6 @@
 class GamesController < ApplicationController
   before_action :authenticate_user!
-  before_action :set_game, only: [:show, :agent, :available_images]
+  before_action :set_game, only: [:show, :update, :agent, :available_images]
 
   def index
     @games = current_user.games.order(created_at: :desc)
@@ -37,6 +37,20 @@ class GamesController < ApplicationController
     respond_to do |format|
       format.html
       format.json { render json: @game }
+    end
+  end
+
+  def update
+    if @game.update(game_params)
+      respond_to do |format|
+        format.json { render json: { success: true, name: @game.name } }
+        format.html { redirect_to @game, notice: 'Game was successfully updated.' }
+      end
+    else
+      respond_to do |format|
+        format.json { render json: { success: false, errors: @game.errors.full_messages }, status: :unprocessable_entity }
+        format.html { redirect_to @game, alert: 'Failed to update game.' }
+      end
     end
   end
 
@@ -97,5 +111,9 @@ class GamesController < ApplicationController
 
   def set_game
     @game = Game.find(params[:id])
+  end
+
+  def game_params
+    params.require(:game).permit(:name)
   end
 end

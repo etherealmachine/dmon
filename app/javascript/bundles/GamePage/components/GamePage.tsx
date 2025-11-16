@@ -109,18 +109,16 @@ const GamePage: React.FC<GamePageProps> = ({
   return (
     <div className="flex h-[calc(100vh-4rem)]">
       {/* Main Panel */}
-      <div className="flex-1 overflow-y-auto bg-gray-50">
+      <div className="flex-1 flex flex-col overflow-y-auto bg-gray-50 py-8 gap-4">
         <PdfCards pdfs={pdfs} gameId={gameId} />
         <MusicTracks musicTracks={musicTracks} gameId={gameId} />
-        <div className="p-8">
-          <div className="max-w-4xl mx-auto">
-            <GameNotes
-              gameId={gameId}
-              notes={initialNotes}
-              selectedNoteIds={selectedNoteGlobalIds}
-              onSelectionChange={handleSelectionChange}
-            />
-          </div>
+        <div className="max-w-4xl mx-auto">
+          <GameNotes
+            gameId={gameId}
+            notes={initialNotes}
+            selectedNoteIds={selectedNoteGlobalIds}
+            onSelectionChange={handleSelectionChange}
+          />
         </div>
       </div>
 

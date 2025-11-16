@@ -8,7 +8,7 @@ Rails.application.routes.draw do
   delete '/logout', to: 'sessions#destroy', as: :logout
 
   # Game routes
-  resources :games, only: [:index, :new, :create, :show] do
+  resources :games, only: [:index, :new, :create, :show, :update] do
     get :agent, on: :member
     post :agent, on: :member
     get :available_images, on: :member
@@ -27,6 +27,7 @@ Rails.application.routes.draw do
       post :run_job, on: :member
       post :delete_images, on: :member
       post :upload_images, on: :member
+      get 'images/:image_id', to: 'pdfs#image', as: :image
     end
     resources :music_tracks, only: [:show, :create, :destroy]
   end

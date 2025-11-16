@@ -70,6 +70,31 @@ class PdfsController < ApplicationController
     end
   end
 
+  def image
+    unless @game.user == current_user
+      redirect_to root_path, alert: "You don't have access to this game."
+      return
+    end
+
+    @image = @pdf.images.find(params[:image_id])
+
+    # Get all images with the same source as the current image for navigation
+    all_images = @pdf.images.filter { |img| img.blob.metadata['source'] == 'pdfimages' }
+
+    # Find the index of the current image
+    @image_index = all_images.find_index { |img| img.id == @image.id }
+    @total_images = all_images.count
+
+    # Get previous and next images for navigation
+    if @image_index && @image_index > 0
+      @previous_image = all_images[@image_index - 1]
+    end
+
+    if @image_index && @image_index < @total_images - 1
+      @next_image = all_images[@image_index + 1]
+    end
+  end
+
   def delete_images
     unless @game.user == current_user
       redirect_to root_path, alert: "You don't have access to this game."
@@ -125,7 +150,7 @@ class PdfsController < ApplicationController
   end
 
   def set_pdf
-    @pdf = @game.pdfs.find(params[:id])
+    @pdf = @game.pdfs.find(params[:id] || params[:pdf_id])
   end
 
   def pdf_params
