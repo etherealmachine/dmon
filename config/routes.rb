@@ -7,6 +7,9 @@ Rails.application.routes.draw do
   get '/login', to: redirect('/users/auth/google_oauth2'), as: :login
   delete '/logout', to: 'sessions#destroy', as: :logout
 
+  # Profile route
+  get '/profile', to: 'profiles#show', as: :profile
+
   # Game routes
   resources :games, only: [:index, :new, :create, :show, :update] do
     get :agent, on: :member

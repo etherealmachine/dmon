@@ -62,9 +62,9 @@
       <div class="flex items-center">
         <% if user_signed_in? %>
           <div class="flex items-center space-x-4">
-            <span class="text-gray-300 text-sm">
+            <%= link_to profile_path, class: "text-gray-300 hover:text-white text-sm transition-colors" do %>
               <%= current_user.name %>
-            </span>
+            <% end %>
             <%= button_to "Logout", logout_path, method: :delete, class: "bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-md text-sm font-medium transition duration-150" %>
           </div>
         <% else %>
