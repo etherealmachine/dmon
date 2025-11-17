@@ -1,8 +1,9 @@
 class OpenAiService
 
-  def initialize(api_key: nil, model: "gpt-4o-mini")
+  def initialize(api_key: nil, model: "gpt-4o-mini", user: nil)
     @api_key = api_key || ENV['OPENAI_API_KEY']
     @model = model
+    @user = user
   end
 
   # Send a chat request with the given messages and tools
@@ -51,14 +52,30 @@ class OpenAiService
   def stream_response(parameters, &block)
     accumulated_text = ""
     accumulated_tool_calls = {}
+    usage_data = nil
 
     yield({ type: "start" })
 
     parameters[:stream] = proc { |chunk, _bytesize|
+      # Capture usage data if present in the chunk
+      if chunk.is_a?(Hash) && chunk["usage"]
+        usage_data = chunk["usage"]
+      end
+
       handle_stream_chunk(chunk, accumulated_text, accumulated_tool_calls, &block)
     }
 
     client.chat(parameters: parameters)
+
+    # Track token usage if available
+    # Note: OpenAI streaming doesn't always provide usage data
+    if @user && usage_data
+      @user.track_token_usage(
+        model: @model,
+        input_tokens: usage_data["prompt_tokens"] || 0,
+        output_tokens: usage_data["completion_tokens"] || 0
+      )
+    end
 
     # Yield final complete event with accumulated data
     result = {
@@ -164,6 +181,15 @@ class OpenAiService
           arguments: JSON.parse(tool_call["function"]["arguments"])
         }
       end
+    end
+
+    # Track token usage if user is present
+    if @user && response["usage"]
+      @user.track_token_usage(
+        model: @model,
+        input_tokens: response["usage"]["prompt_tokens"] || 0,
+        output_tokens: response["usage"]["completion_tokens"] || 0
+      )
     end
 
     result

@@ -2,9 +2,10 @@ require "anthropic"
 
 class ClaudeService
 
-  def initialize(api_key: nil, model: "claude-3-5-sonnet-20241022")
+  def initialize(api_key: nil, model: "claude-3-5-sonnet-20241022", user: nil)
     @api_key = api_key || ENV['ANTHROPIC_API_KEY']
     @model = model
+    @user = user
     @client = Anthropic::Client.new(api_key: @api_key)
   end
 
@@ -48,6 +49,7 @@ class ClaudeService
     accumulated_text = ""
     accumulated_tool_calls = []
     current_tool_use = nil
+    usage_data = { input_tokens: 0, output_tokens: 0 }
 
     # Remove stream parameter as it's implicit in the .stream() method
     parameters.delete(:stream)
@@ -61,7 +63,11 @@ class ClaudeService
       event_type = event.type.to_s
       case event_type
       when "message_start"
-        # Message started
+        # Message started - capture initial usage data
+        if event.message&.usage
+          usage_data[:input_tokens] = event.message.usage.input_tokens || 0
+          usage_data[:output_tokens] = event.message.usage.output_tokens || 0
+        end
         yield({ type: "start" })
       when "content_block_start"
         # New content block started
@@ -93,9 +99,20 @@ class ClaudeService
           current_tool_use = nil
         end
       when "message_delta"
-        # Additional message metadata
+        # Additional message metadata - update usage if present
+        if event.usage
+          usage_data[:output_tokens] = event.usage.output_tokens || usage_data[:output_tokens]
+        end
       when "message_stop"
-        # Message complete
+        # Message complete - track token usage
+        if @user
+          @user.track_token_usage(
+            model: @model,
+            input_tokens: usage_data[:input_tokens],
+            output_tokens: usage_data[:output_tokens]
+          )
+        end
+
         result = {
           type: "complete",
           content: accumulated_text,
@@ -220,6 +237,16 @@ class ClaudeService
 
     result[:content] = text_blocks.join("\n")
     result[:tool_calls] = tool_calls if tool_calls.any?
+
+    # Track token usage if user is present
+    # Claude provides usage in the response.usage field
+    if @user && response.usage
+      @user.track_token_usage(
+        model: @model,
+        input_tokens: response.usage.input_tokens || 0,
+        output_tokens: response.usage.output_tokens || 0
+      )
+    end
 
     result
   end

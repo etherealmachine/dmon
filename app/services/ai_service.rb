@@ -66,23 +66,24 @@ class AiService
   # Create a service instance for the given model
   # @param model [String] The model name
   # @param api_key [String, nil] Optional API key (uses ENV if not provided)
+  # @param user [User, nil] Optional user for token tracking
   # @return [OpenAiService, ClaudeService] The appropriate service instance
   # @raises [ArgumentError] If model is not in the registry
-  def self.create(model:, api_key: nil)
+  def self.create(model:, api_key: nil, user: nil)
     provider = provider_for(model)
 
     case provider
     when :openai
-      OpenAiService.new(api_key: api_key, model: model)
+      OpenAiService.new(api_key: api_key, model: model, user: user)
     when :claude
-      ClaudeService.new(api_key: api_key, model: model)
+      ClaudeService.new(api_key: api_key, model: model, user: user)
     else
       raise ArgumentError, "Unknown provider: #{provider}"
     end
   end
 
   # Unified chat interface that automatically selects the right provider
-  # @param model [String] The model name
+  # @param user [User] The user making the request (required for token tracking)
   # @param messages [Array<Hash>] Array of message hashes with :role and :content
   #   Supports ActiveStorage attachments directly:
   #   - {role: "user", content: "text"}
@@ -91,11 +92,15 @@ class AiService
   # @param system_message [String, nil] Optional system message
   # @param tools [Array<Hash>] Array of tool definitions
   # @param stream [Boolean] Whether to stream the response
+  # @param model [String, nil] Optional model override (uses user.preferred_model if not provided)
   # @param api_key [String, nil] Optional API key
   # @param max_retries [Integer] Maximum number of retries for rate limit errors (default: 3)
   # @return [Hash] Unified response with :content, :tool_calls, etc.
-  def self.chat(model:, messages:, system_message: nil, tools: [], stream: false, api_key: nil, max_retries: 3, &block)
-    service = create(model: model, api_key: api_key)
+  def self.chat(user:, messages:, system_message: nil, tools: [], stream: false, model: nil, api_key: nil, max_retries: 3, &block)
+    # Use provided model or fall back to user's preferred model
+    model ||= user.preferred_model
+
+    service = create(model: model, api_key: api_key, user: user)
     provider = provider_for(model)
 
     # Normalize messages to handle ActiveStorage attachments

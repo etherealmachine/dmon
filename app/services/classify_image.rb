@@ -1,8 +1,9 @@
 class ClassifyImage
-  def initialize(image, model, text_context:)
+  def initialize(image, user:, text_context:, model: nil)
     @image = image
-    @model = model
+    @user = user
     @text_context = text_context
+    @model = model
   end
 
   def classify
@@ -17,6 +18,7 @@ class ClassifyImage
     tools = [classification_tool_schema]
 
     response = AiService.chat(
+      user: @user,
       model: @model,
       messages: messages,
       tools: tools,

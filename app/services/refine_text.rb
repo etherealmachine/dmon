@@ -1,6 +1,7 @@
 class RefineText
-  def initialize(pdf, api_key: nil, model: "gpt-4o")
+  def initialize(pdf, user: nil, api_key: nil, model: nil)
     @pdf = pdf
+    @user = user || pdf.game.user
     @api_key = api_key
     @model = model
   end
@@ -88,6 +89,7 @@ class RefineText
 
   def refine_chunk_with_openai(chunk, markdown_context, chunk_index, total_chunks)
     response = AiService.chat(
+      user: @user,
       model: @model,
       messages: [
         {

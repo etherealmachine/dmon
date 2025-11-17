@@ -30,19 +30,19 @@ const MusicTracks: React.FC<MusicTracksProps> = ({ musicTracks, gameId }) => {
             <a
               key={track.id}
               href={track.url}
-              className="block bg-white rounded-lg shadow hover:shadow-lg transition-shadow p-4 border border-gray-200"
+              className="block bg-white rounded-lg shadow hover:shadow-lg transition-shadow p-3 border border-gray-200"
             >
-              <div className="flex items-start space-x-3">
+              <div className="flex items-start space-x-2">
                 {/* Music Icon */}
-                <div className="flex-shrink-0 w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center">
-                  <svg className="w-6 h-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <div className="flex-shrink-0 w-8 h-8 bg-purple-100 rounded flex items-center justify-center">
+                  <svg className="w-5 h-5 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3"></path>
                   </svg>
                 </div>
 
                 {/* Track Info */}
                 <div className="flex-1 min-w-0">
-                  <h4 className="text-sm font-semibold text-gray-900 truncate mb-1">
+                  <h4 className="text-sm font-semibold text-gray-900 truncate mb-0.5">
                     {track.filename}
                   </h4>
                   <p className="text-xs text-gray-500">
@@ -54,7 +54,7 @@ const MusicTracks: React.FC<MusicTracksProps> = ({ musicTracks, gameId }) => {
           ))}
 
           {/* Upload New Music Track Card */}
-          <div className="bg-white rounded-lg shadow hover:shadow-lg transition-shadow p-4 border-2 border-dashed border-gray-300">
+          <div className="bg-white rounded-lg shadow hover:shadow-lg transition-shadow p-3 border-2 border-dashed border-gray-300">
             <form
               action={`/games/${gameId}/music_tracks`}
               method="post"
@@ -66,26 +66,23 @@ const MusicTracks: React.FC<MusicTracksProps> = ({ musicTracks, gameId }) => {
                 name="authenticity_token"
                 value={document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''}
               />
-              <div className="flex-shrink-0 w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center mx-auto mb-3">
-                <svg className="w-6 h-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4"></path>
-                </svg>
-              </div>
-              <h4 className="text-sm font-semibold text-gray-900 text-center mb-3">Add Music Tracks</h4>
+              <h4 className="text-xs font-semibold text-gray-900 text-center mb-2">Add Music Tracks</h4>
               <input
                 type="file"
                 name="music_tracks[]"
                 accept="audio/mpeg,audio/mp3,audio/*"
                 multiple
-                className="block w-full text-xs text-gray-500 file:mr-2 file:py-2 file:px-3 file:rounded file:border-0 file:text-xs file:font-medium file:bg-purple-50 file:text-purple-700 hover:file:bg-purple-100 mb-3"
+                className="block w-full text-xs text-gray-500 file:mr-2 file:py-1.5 file:px-2 file:rounded file:border-0 file:text-xs file:font-medium file:bg-purple-50 file:text-purple-700 hover:file:bg-purple-100 mb-2"
               />
 
-              <button
-                type="submit"
-                className="w-full bg-purple-500 hover:bg-purple-600 text-white font-medium py-2 px-4 rounded-lg transition-colors cursor-pointer text-sm"
-              >
-                Add Tracks
-              </button>
+              <div className="text-center">
+                <button
+                  type="submit"
+                  className="bg-purple-500 hover:bg-purple-600 text-white font-medium py-1.5 px-3 rounded transition-colors cursor-pointer text-xs"
+                >
+                  Add Tracks
+                </button>
+              </div>
             </form>
           </div>
         </div>

@@ -27,6 +27,32 @@
       </div>
     </div>
 
+    <!-- API Usage Card -->
+    <% if @user.token_usage.any? %>
+      <div class="bg-white rounded-lg shadow p-6 mb-8">
+        <h2 class="text-lg font-semibold text-gray-900 mb-4">API Usage</h2>
+        <div class="space-y-4">
+          <% @user.token_usage.each do |model, usage| %>
+            <div class="border-b border-gray-200 pb-3 last:border-b-0 last:pb-0">
+              <div class="flex items-center justify-between mb-2">
+                <span class="text-sm font-medium text-gray-900"><%= model %></span>
+              </div>
+              <div class="grid grid-cols-2 gap-4">
+                <div>
+                  <span class="text-xs text-gray-500">Input Tokens:</span>
+                  <span class="text-sm font-medium text-gray-900 ml-2"><%= number_with_delimiter(usage[:input]) %></span>
+                </div>
+                <div>
+                  <span class="text-xs text-gray-500">Output Tokens:</span>
+                  <span class="text-sm font-medium text-gray-900 ml-2"><%= number_with_delimiter(usage[:output]) %></span>
+                </div>
+              </div>
+            </div>
+          <% end %>
+        </div>
+      </div>
+    <% end %>
+
     <!-- Games Section -->
     <div class="mb-4">
       <div class="flex items-center justify-between">

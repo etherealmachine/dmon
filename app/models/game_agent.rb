@@ -60,7 +60,7 @@ class GameAgent < ApplicationRecord
       if stream
         # Streaming mode
         AiService.chat(
-          model: game.user.preferred_model,
+          user: game.user,
           messages: conversation_history,
           system_message: context_string,
           tools: unified_tool_definitions,
@@ -82,7 +82,7 @@ class GameAgent < ApplicationRecord
       else
         # Non-streaming mode
         response = AiService.chat(
-          model: game.user.preferred_model,
+          user: game.user,
           messages: conversation_history,
           system_message: context_string,
           tools: unified_tool_definitions
@@ -136,7 +136,7 @@ class GameAgent < ApplicationRecord
         if stream
           # Stream final response
           AiService.chat(
-            model: game.user.preferred_model,
+            user: game.user,
             messages: conversation_history,
             system_message: context_string,
             tools: unified_tool_definitions,
@@ -156,7 +156,7 @@ class GameAgent < ApplicationRecord
         else
           # Non-streaming final response
           final_response = AiService.chat(
-            model: game.user.preferred_model,
+            user: game.user,
             messages: conversation_history,
             system_message: context_string,
             tools: unified_tool_definitions

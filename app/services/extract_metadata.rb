@@ -1,6 +1,7 @@
 class ExtractMetadata
-  def initialize(pdf, api_key: nil, model: "gpt-5-nano")
+  def initialize(pdf, user: nil, api_key: nil, model: nil)
     @pdf = pdf
+    @user = user || pdf.game.user
     @api_key = api_key
     @model = model
   end
@@ -28,6 +29,7 @@ class ExtractMetadata
 
   def analyze_with_openai(text_content)
     response = AiService.chat(
+      user: @user,
       model: @model,
       messages: [
         {

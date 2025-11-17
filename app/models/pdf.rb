@@ -56,7 +56,7 @@ class Pdf < ApplicationRecord
 
       ClassifyImage.new(
         image,
-        game.user.preferred_model,
+        user: game.user,
         text_context: text_content
       ).classify
     end
