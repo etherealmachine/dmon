@@ -1,9 +1,11 @@
 class GamesController < ApplicationController
-  before_action :authenticate_user!
-  before_action :set_game, only: [:show, :update, :agent, :available_images]
+  before_action :authenticate_user!, except: [:index]
+  before_action :set_game, only: [:show, :update, :agent, :available_images, :download]
 
   def index
-    @games = current_user.games.order(created_at: :desc)
+    # Get example games
+    example_user = User.find_by(provider: "example", uid: "example_user")
+    @example_games = example_user&.games&.order(created_at: :desc) || []
   end
 
   def new
@@ -28,6 +30,40 @@ class GamesController < ApplicationController
       redirect_to @game, notice: 'Game was successfully created.'
     else
       render :new, status: :unprocessable_entity
+    end
+  end
+
+  def create_from_upload
+    unless user_signed_in?
+      redirect_to login_path, alert: 'Please sign in to upload PDFs.'
+      return
+    end
+
+    unless params[:pdf_file].present?
+      redirect_to root_path, alert: 'Please select a PDF file.'
+      return
+    end
+
+    # Extract filename without extension for game name
+    filename = params[:pdf_file].original_filename
+    game_name = filename.gsub(/\.pdf$/i, '')
+
+    # Create game with PDF name
+    @game = current_user.games.build(name: game_name)
+
+    if @game.save
+      # Create and attach PDF
+      pdf = @game.pdfs.build(name: game_name)
+      pdf.pdf.attach(params[:pdf_file])
+
+      if pdf.save
+        redirect_to @game, notice: 'Game created! Processing your PDF...'
+      else
+        @game.destroy
+        redirect_to root_path, alert: "Failed to upload PDF: #{pdf.errors.full_messages.join(', ')}"
+      end
+    else
+      redirect_to root_path, alert: "Failed to create game: #{@game.errors.full_messages.join(', ')}"
     end
   end
 
@@ -105,6 +141,20 @@ class GamesController < ApplicationController
     end.compact
 
     render json: { pdfs: pdfs_with_images }
+  end
+
+  def download
+    # Create the export (returns zip file contents)
+    zip_data = GameExport.new(@game).call
+
+    # Send the data to the user
+    game_name = @game.name.presence || "game_#{@game.id}"
+    send_data(
+      zip_data,
+      filename: "#{game_name}.zip",
+      type: 'application/zip',
+      disposition: 'attachment'
+    )
   end
 
   private

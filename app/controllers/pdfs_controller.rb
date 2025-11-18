@@ -53,6 +53,25 @@ class PdfsController < ApplicationController
     end
   end
 
+  def update
+    unless @game.user == current_user
+      redirect_to root_path, alert: "You don't have access to this game."
+      return
+    end
+
+    if @pdf.update(pdf_update_params)
+      respond_to do |format|
+        format.json { render json: { success: true, name: @pdf.name } }
+        format.html { redirect_to game_pdf_path(@game, @pdf), notice: 'PDF was successfully updated.' }
+      end
+    else
+      respond_to do |format|
+        format.json { render json: { success: false, errors: @pdf.errors.full_messages }, status: :unprocessable_entity }
+        format.html { redirect_to game_pdf_path(@game, @pdf), alert: 'Failed to update PDF.' }
+      end
+    end
+  end
+
   def run_job
     unless @game.user == current_user
       redirect_to root_path, alert: "You don't have access to this game."
@@ -155,5 +174,9 @@ class PdfsController < ApplicationController
 
   def pdf_params
     params.require(:pdf).permit(:pdf, :name, :description)
+  end
+
+  def pdf_update_params
+    params.require(:pdf).permit(:name, :description, :text_content)
   end
 end

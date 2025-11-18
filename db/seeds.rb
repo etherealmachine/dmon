@@ -7,3 +7,11 @@
 #   ["Action", "Comedy", "Drama", "Horror"].each do |genre_name|
 #     MovieGenre.find_or_create_by!(name: genre_name)
 #   end
+
+# Create example user for showcasing example games
+example_user = User.find_or_create_by!(provider: "example", uid: "example_user") do |user|
+  user.email = "examples@dmon.app"
+  user.name = "Examples"
+end
+
+puts "Example user created/found: #{example_user.name} (#{example_user.email})"

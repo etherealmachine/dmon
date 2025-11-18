@@ -12,9 +12,11 @@ Rails.application.routes.draw do
 
   # Game routes
   resources :games, only: [:index, :new, :create, :show, :update] do
+    post :upload, on: :collection, action: :create_from_upload
     get :agent, on: :member
     post :agent, on: :member
     get :available_images, on: :member
+    get :download, on: :member
     resources :game_notes, only: [:create, :update, :destroy] do
       post :call_action, on: :member
       post :clear_history, on: :member
@@ -25,7 +27,7 @@ Rails.application.routes.draw do
       post :attach_image, on: :member
       post :detach_image, on: :member
     end
-    resources :pdfs, only: [:show, :create] do
+    resources :pdfs, only: [:show, :create, :update] do
       get :html, on: :member
       post :run_job, on: :member
       post :delete_images, on: :member

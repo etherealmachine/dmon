@@ -1,36 +1,24 @@
 <div class="max-w-6xl mx-auto p-8">
   <!-- PDF Info Card -->
   <div class="bg-white rounded-lg shadow-md p-6 mb-6">
-    <div class="flex justify-between items-start mb-4">
-      <h2 class="text-2xl font-bold"><%= @pdf.name %></h2>
-      <div class="flex gap-2">
-        <%= link_to "View HTML", html_game_pdf_path(@game, @pdf),
-            class: "bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded font-medium text-sm transition-colors" %>
-        <%= button_to "Extract Text", run_job_game_pdf_path(@game, @pdf, method: :extract_text),
-            method: :post,
-            class: "bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded font-medium text-sm transition-colors",
-            data: { turbo_confirm: "This will re-extract and refine the text content. Continue?" } %>
-        <%= button_to "Refine Text", run_job_game_pdf_path(@game, @pdf, method: :refine_text),
-            method: :post,
-            class: "bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded font-medium text-sm transition-colors",
-            data: { turbo_confirm: "This will refine the text content. Continue?" } %>
-        <%= button_to "Extract HTML", run_job_game_pdf_path(@game, @pdf, method: :extract_html),
-            method: :post,
-            class: "bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded font-medium text-sm transition-colors",
-            data: { turbo_confirm: "This will extract the HTML content. Continue?" } %>
-        <%= button_to "Extract Images", run_job_game_pdf_path(@game, @pdf, method: :extract_images),
-            method: :post,
-            class: "bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded font-medium text-sm transition-colors",
-            data: { turbo_confirm: "This will extract the images. Continue?" } %>
-        <%= button_to "Extract Metadata", run_job_game_pdf_path(@game, @pdf, method: :extract_metadata),
-            method: :post,
-            class: "bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded font-medium text-sm transition-colors",
-            data: { turbo_confirm: "This will extract the metadata. Continue?" } %>
-        <%= button_to "Classify Images", run_job_game_pdf_path(@game, @pdf, method: :classify_images),
-            method: :post,
-            class: "bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded font-medium text-sm transition-colors",
-            data: { turbo_confirm: "This will classify the images. Continue?" } %>
+    <!-- Top Row: Title and View HTML -->
+    <div class="flex justify-between items-center mb-4">
+      <div class="flex-1">
+        <h2 class="text-2xl font-bold cursor-pointer hover:text-gray-700 transition-colors"
+            id="pdf-name-display"
+            onclick="editPdfName()"
+            title="Click to edit">
+          <%= @pdf.name %>
+        </h2>
+        <input type="text"
+               id="pdf-name-input"
+               class="hidden text-2xl font-bold bg-gray-100 px-2 py-1 rounded border border-gray-300 focus:outline-none focus:border-blue-500 w-full max-w-2xl"
+               value="<%= @pdf.name %>"
+               onblur="savePdfName()"
+               onkeydown="handlePdfNameKeydown(event)" />
       </div>
+      <%= link_to "View HTML", html_game_pdf_path(@game, @pdf),
+          class: "bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded font-medium text-sm transition-colors" %>
     </div>
 
     <% if @pdf.description.present? %>
@@ -40,17 +28,57 @@
       </div>
     <% end %>
 
-    <div class="text-sm text-gray-500">
+    <div class="text-sm text-gray-500 mb-4">
       <p>Created: <%= @pdf.created_at.strftime("%B %d, %Y at %I:%M %p") %></p>
+    </div>
+
+    <!-- Bottom Row: Action Buttons -->
+    <div class="flex flex-wrap gap-2 pt-4 border-t border-gray-200">
+      <%= button_to "Extract Text", run_job_game_pdf_path(@game, @pdf, method: :extract_text),
+          method: :post,
+          class: "bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded font-medium text-sm transition-colors",
+          data: { turbo_confirm: "This will re-extract and refine the text content. Continue?" } %>
+      <%= button_to "Refine Text", run_job_game_pdf_path(@game, @pdf, method: :refine_text),
+          method: :post,
+          class: "bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded font-medium text-sm transition-colors",
+          data: { turbo_confirm: "This will refine the text content. Continue?" } %>
+      <%= button_to "Extract HTML", run_job_game_pdf_path(@game, @pdf, method: :extract_html),
+          method: :post,
+          class: "bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded font-medium text-sm transition-colors",
+          data: { turbo_confirm: "This will extract the HTML content. Continue?" } %>
+      <%= button_to "Extract Images", run_job_game_pdf_path(@game, @pdf, method: :extract_images),
+          method: :post,
+          class: "bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded font-medium text-sm transition-colors",
+          data: { turbo_confirm: "This will extract the images. Continue?" } %>
+      <%= button_to "Extract Metadata", run_job_game_pdf_path(@game, @pdf, method: :extract_metadata),
+          method: :post,
+          class: "bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded font-medium text-sm transition-colors",
+          data: { turbo_confirm: "This will extract the metadata. Continue?" } %>
+      <%= button_to "Classify Images", run_job_game_pdf_path(@game, @pdf, method: :classify_images),
+          method: :post,
+          class: "bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded font-medium text-sm transition-colors",
+          data: { turbo_confirm: "This will classify the images. Continue?" } %>
     </div>
   </div>
 
   <!-- Text Content -->
   <% if @pdf.text_content.present? %>
     <div class="bg-white rounded-lg shadow-md p-6 mb-6">
-      <h3 class="text-lg font-semibold mb-4">Text Content</h3>
-      <div class="prose prose-sm max-w-none text-gray-700 whitespace-pre-wrap font-mono text-xs bg-gray-50 p-4 rounded border border-gray-200 max-h-96 overflow-y-auto">
-<%= @pdf.text_content %>
+      <h3 class="text-lg font-semibold mb-4">Text Content <span class="text-sm text-gray-500 font-normal">(click to edit)</span></h3>
+      <div id="text-content-display"
+           class="prose prose-sm max-w-none text-gray-700 whitespace-pre-wrap font-mono text-xs bg-gray-50 p-4 rounded border border-gray-200 max-h-96 overflow-y-auto cursor-pointer hover:bg-gray-100 transition-colors"
+           onclick="editTextContent()"
+           title="Click to edit"><%= @pdf.text_content %></div>
+      <textarea id="text-content-input"
+                class="hidden w-full h-96 font-mono text-xs bg-white p-4 rounded border border-gray-300 focus:outline-none focus:border-blue-500 resize-y"
+                onblur="saveTextContent()"><%= @pdf.text_content %></textarea>
+      <div id="text-content-actions" class="hidden mt-2 flex gap-2">
+        <button onclick="saveTextContent()" class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded font-medium text-sm transition-colors">
+          Save
+        </button>
+        <button onclick="cancelTextEdit()" class="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded font-medium text-sm transition-colors">
+          Cancel
+        </button>
       </div>
     </div>
   <% end %>
@@ -304,5 +332,176 @@
 
       updateDeleteButton();
     }
+
+    // PDF name editing
+    let originalPdfName = '<%= j @pdf.name %>';
+
+    window.editPdfName = function() {
+      const display = document.getElementById('pdf-name-display');
+      const input = document.getElementById('pdf-name-input');
+
+      if (!display || !input) return;
+
+      display.classList.add('hidden');
+      input.classList.remove('hidden');
+      input.focus();
+      input.select();
+    };
+
+    window.cancelPdfEdit = function() {
+      const display = document.getElementById('pdf-name-display');
+      const input = document.getElementById('pdf-name-input');
+
+      if (!display || !input) return;
+
+      input.value = originalPdfName;
+      input.classList.add('hidden');
+      display.classList.remove('hidden');
+    };
+
+    window.savePdfName = function() {
+      const display = document.getElementById('pdf-name-display');
+      const input = document.getElementById('pdf-name-input');
+
+      if (!display || !input) return;
+
+      const newName = input.value.trim();
+
+      // If name hasn't changed or is empty, just cancel
+      if (newName === originalPdfName || newName === '') {
+        cancelPdfEdit();
+        return;
+      }
+
+      // Save via AJAX
+      fetch('<%= game_pdf_path(@game, @pdf) %>', {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRF-Token': document.querySelector('[name="csrf-token"]').content
+        },
+        body: JSON.stringify({
+          pdf: { name: newName }
+        })
+      })
+      .then(response => response.json())
+      .then(data => {
+        if (data.success) {
+          originalPdfName = data.name;
+          display.textContent = data.name;
+          input.value = data.name;
+          input.classList.add('hidden');
+          display.classList.remove('hidden');
+        } else {
+          alert('Failed to update PDF name: ' + (data.errors || ['Unknown error']).join(', '));
+          cancelPdfEdit();
+        }
+      })
+      .catch(error => {
+        console.error('Error:', error);
+        alert('Failed to update PDF name');
+        cancelPdfEdit();
+      });
+    };
+
+    window.handlePdfNameKeydown = function(event) {
+      if (event.key === 'Enter') {
+        event.preventDefault();
+        savePdfName();
+      } else if (event.key === 'Escape') {
+        event.preventDefault();
+        cancelPdfEdit();
+      }
+    };
+
+    // Text content editing
+    let originalTextContent = '<%= j @pdf.text_content %>';
+    let isEditingText = false;
+
+    window.editTextContent = function() {
+      const display = document.getElementById('text-content-display');
+      const input = document.getElementById('text-content-input');
+      const actions = document.getElementById('text-content-actions');
+
+      if (!display || !input || !actions) return;
+
+      isEditingText = true;
+      display.classList.add('hidden');
+      input.classList.remove('hidden');
+      actions.classList.remove('hidden');
+      input.focus();
+    };
+
+    window.cancelTextEdit = function() {
+      const display = document.getElementById('text-content-display');
+      const input = document.getElementById('text-content-input');
+      const actions = document.getElementById('text-content-actions');
+
+      if (!display || !input || !actions) return;
+
+      isEditingText = false;
+      input.value = originalTextContent;
+      input.classList.add('hidden');
+      actions.classList.add('hidden');
+      display.classList.remove('hidden');
+    };
+
+    window.saveTextContent = function() {
+      // If not editing, don't save (this prevents onblur from triggering save when clicking buttons)
+      if (!isEditingText) return;
+
+      const display = document.getElementById('text-content-display');
+      const input = document.getElementById('text-content-input');
+      const actions = document.getElementById('text-content-actions');
+
+      if (!display || !input || !actions) return;
+
+      const newContent = input.value;
+
+      // If content hasn't changed, just cancel
+      if (newContent === originalTextContent) {
+        cancelTextEdit();
+        return;
+      }
+
+      // Disable buttons during save
+      const saveBtn = actions.querySelector('button:first-child');
+      const cancelBtn = actions.querySelector('button:last-child');
+      if (saveBtn) saveBtn.disabled = true;
+      if (cancelBtn) cancelBtn.disabled = true;
+
+      // Save via AJAX
+      fetch('<%= game_pdf_path(@game, @pdf) %>', {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRF-Token': document.querySelector('[name="csrf-token"]').content
+        },
+        body: JSON.stringify({
+          pdf: { text_content: newContent }
+        })
+      })
+      .then(response => response.json())
+      .then(data => {
+        if (data.success) {
+          originalTextContent = newContent;
+          display.textContent = newContent;
+          isEditingText = false;
+          input.classList.add('hidden');
+          actions.classList.add('hidden');
+          display.classList.remove('hidden');
+        } else {
+          alert('Failed to update text content: ' + (data.errors || ['Unknown error']).join(', '));
+        }
+      })
+      .catch(error => {
+        console.error('Error:', error);
+        alert('Failed to update text content');
+      })
+      .finally(() => {
+        if (saveBtn) saveBtn.disabled = false;
+        if (cancelBtn) cancelBtn.disabled = false;
+      });
+    };
   });
 </script>
