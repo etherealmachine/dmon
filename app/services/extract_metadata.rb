@@ -28,22 +28,13 @@ class ExtractMetadata
   end
 
   def analyze_with_openai(text_content)
-    response = AiService.chat(
-      user: @user,
-      model: @model,
-      messages: [
-        {
-          role: "user",
-          content: metadata_extraction_prompt(text_content)
-        }
-      ],
-      api_key: @api_key
-    )
+    chat = RubyLLM.chat(model: @model || @user.preferred_model)
+    response = chat.ask(metadata_extraction_prompt(text_content))
 
-    content = response[:content] || ""
+    content = response.content || ""
     parse_metadata_response(content)
-  rescue AiService::Error => e
-    Rails.logger.error "AI service error while extracting metadata: #{e.detailed_message}"
+  rescue => e
+    Rails.logger.error "AI service error while extracting metadata: #{e.class} - #{e.message}"
     raise
   end
 

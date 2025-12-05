@@ -88,21 +88,12 @@ class RefineText
   end
 
   def refine_chunk_with_openai(chunk, markdown_context, chunk_index, total_chunks)
-    response = AiService.chat(
-      user: @user,
-      model: @model,
-      messages: [
-        {
-          role: "user",
-          content: refine_chunk_prompt(chunk, markdown_context, chunk_index, total_chunks)
-        }
-      ],
-      api_key: @api_key
-    )
+    chat = RubyLLM.chat(model: @model || @user.preferred_model)
+    response = chat.ask(refine_chunk_prompt(chunk, markdown_context, chunk_index, total_chunks))
 
-    response[:content] || chunk[:text]
-  rescue AiService::Error => e
-    Rails.logger.error "AI service error while refining chunk: #{e.detailed_message}"
+    response.content || chunk[:text]
+  rescue => e
+    Rails.logger.error "AI service error while refining chunk: #{e.class} - #{e.message}"
     raise
   end
 

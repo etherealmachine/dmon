@@ -7,41 +7,69 @@ class ClassifyImage
   end
 
   def classify
-    messages = [
-      {
-        role: "user",
-        content: classification_prompt,
-        images: [@image]
-      }
-    ]
+    # Create a tool for classification
+    tool = ClassifyImageTool.new(@image)
 
-    tools = [classification_tool_schema]
+    # Create chat instance
+    chat = RubyLLM.chat(model: @model || @user.preferred_model)
+    chat.with_tool(tool)
 
-    response = AiService.chat(
-      user: @user,
-      model: @model,
-      messages: messages,
-      tools: tools,
-      stream: false
-    )
+    # Ask with image attached
+    response = chat.ask(classification_prompt, with: @image.blob.download)
 
-    if response[:tool_calls]&.any?
-      tool_call = response[:tool_calls].first
-      classification_data = tool_call[:arguments]
+    # Tool should have been called, result stored in blob metadata by tool
+    Rails.logger.info "Classified image #{@image.filename}"
+  end
 
+  # Internal tool class for RubyLLM
+  class ClassifyImageTool < RubyLLM::Tool
+    description "Classify an RPG image and provide a description"
+
+    def initialize(image)
+      @image = image
+    end
+
+    def name
+      "classify_image"
+    end
+
+    params({
+      "type" => "object",
+      "properties" => {
+        "classification" => {
+          "type" => "string",
+          "enum" => [
+            "map", "character", "monster", "item", "scene", "handout",
+            "table", "decorative", "background", "logo", "artifact",
+            "silhouette", "incomplete", "other"
+          ],
+          "description" => "The classification category for the image"
+        },
+        "description" => {
+          "type" => "string",
+          "description" => "A brief 1-2 sentence description of the image content"
+        },
+        "recommendation" => {
+          "type" => "string",
+          "enum" => ["keep", "remove"],
+          "description" => "A recommendation for the user on whether to keep the image or not. If the image is not valuable, recommend removing it."
+        }
+      },
+      "required" => ["classification", "description"]
+    })
+
+    def execute(classification:, description:, recommendation: nil)
       @image.blob.update(
         metadata: @image.blob.metadata.merge(
           'classification_error' => nil,
-          'classification' => classification_data['classification'],
-          'description' => classification_data['description'],
-          'recommendation' => classification_data['recommendation'],
+          'classification' => classification,
+          'description' => description,
+          'recommendation' => recommendation,
           'classified_at' => Time.current.iso8601
         )
       )
 
-      Rails.logger.info "Classified image #{@image.filename}: #{classification_data['classification']}"
-    else
-      raise "No structured classification returned from API"
+      { success: true, classification: classification }
     end
   end
 
@@ -78,36 +106,5 @@ class ClassifyImage
       - incomplete: Incomplete or partial illustrations
       - other: Anything that doesn't fit the above categories
     PROMPT
-  end
-
-  def classification_tool_schema
-    {
-      name: "classify_image",
-      description: "Classify an RPG image and provide a description",
-      parameters: {
-        type: "object",
-        properties: {
-          classification: {
-            type: "string",
-            enum: [
-              "map", "character", "monster", "item", "scene", "handout",
-              "table", "decorative", "background", "logo", "artifact",
-              "silhouette", "incomplete", "other"
-            ],
-            description: "The classification category for the image"
-          },
-          description: {
-            type: "string",
-            description: "A brief 1-2 sentence description of the image content"
-          },
-          recommendation: {
-            type: "string",
-            enum: ["keep", "remove"],
-            description: "A recommendation for the user on whether to keep the image or not. If the image is not valuable, recommend removing it."
-          },
-        },
-        required: ["classification", "description"]
-      }
-    }
   end
 end

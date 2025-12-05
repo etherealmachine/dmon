@@ -66,6 +66,7 @@ gem "thruster", require: false
 # AI API clients for LLM processing
 gem "ruby-openai"
 gem "anthropic"
+gem "ruby_llm"
 
 # Markdown rendering
 gem "redcarpet"
