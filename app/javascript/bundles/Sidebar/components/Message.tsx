@@ -18,29 +18,35 @@ interface MessageProps {
 
 const Message: React.FC<MessageProps> = ({ role, content, tool_calls, tool_call_id }) => {
   const isUser = role === 'user';
+  const isError = role === 'error';
 
   // Don't render empty assistant messages (but do render tool messages)
   if (role === 'assistant' && !content?.trim() && !tool_calls?.length) {
     return null;
   }
 
-  if (role === 'tool' && tool_call_id) {
-    return null;
+  // Render tool result messages
+  const isToolResult = role === 'tool';
+
+  // Determine background and border colors
+  let bgColor = 'bg-gray-50 border-gray-200';
+  if (isUser) {
+    bgColor = 'bg-blue-50 border-blue-200';
+  } else if (isError) {
+    bgColor = 'bg-red-50 border-red-200';
+  } else if (isToolResult) {
+    bgColor = 'bg-green-50 border-green-200';
   }
 
   return (
-    <div
-      className={`${
-        isUser ? 'bg-blue-50 border-blue-200' : 'bg-gray-50 border-gray-200'
-      } border rounded-lg p-3`}
-    >
+    <div className={`${bgColor} border rounded-lg p-3`}>
       <div className="mb-1">
         <span
           className={`text-xs font-medium ${
-            isUser ? 'text-blue-600' : 'text-gray-600'
+            isUser ? 'text-blue-600' : isError ? 'text-red-600' : isToolResult ? 'text-green-600' : 'text-gray-600'
           } uppercase`}
         >
-          {role}
+          {isToolResult ? 'tool result' : role}
         </span>
       </div>
 

@@ -8,10 +8,6 @@ module GameAgentTools
 
     params do
       integer :note_id, description: "The ID of the note to read", required: true
-
-    def name
-      "read_game_note"
-    end
     end
 
     def initialize(game)

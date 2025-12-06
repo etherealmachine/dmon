@@ -8,15 +8,9 @@ module GameAgentTools
 
     params do
       integer :note_id, description: "The ID of the note to update", required: true
-
-    def name
-      "update_note_stats"
-    end
-      object :stats, description: "Object containing stat key-value pairs to update (e.g., {\"HP\": 30}). Values can be numbers or strings.", required: true
-
-    def name
-      "update_note_stats"
-    end
+      object :stats, description: "Object containing stat key-value pairs to update (e.g., {\"HP\": 30}). Values can be numbers or strings.", required: true do
+        # Free-form object - accepts any stat key-value pairs
+      end
     end
 
     def initialize(game)

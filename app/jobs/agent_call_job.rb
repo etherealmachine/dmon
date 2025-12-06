@@ -18,12 +18,18 @@ class AgentCallJob < ApplicationJob
       plan: agent.plan
     })
   rescue StandardError => e
-    # Broadcast error to client
-    AgentChannel.broadcast_to(Game.find(game_id), {
+    # Broadcast error to client with full debugging information
+    error_data = {
       type: "error",
-      error: e.message,
-      backtrace: Rails.env.development? ? e.backtrace.first(10) : nil
-    })
+      error: "#{e.class}: #{e.message}"
+    }
+
+    # Always include backtrace in development, optionally in production
+    if Rails.env.development? || Rails.env.test?
+      error_data[:backtrace] = e.backtrace.first(20)
+    end
+
+    AgentChannel.broadcast_to(Game.find(game_id), error_data)
     raise e
   end
 end

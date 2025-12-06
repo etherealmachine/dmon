@@ -84,6 +84,8 @@ const GameNote: React.FC<GameNoteProps> = ({
     pdf_name: string;
     images: Array<{ pdf_id: number; image_index: number; url: string }>;
   }>>([]);
+  const [agentInput, setAgentInput] = useState('');
+  const [isAgentProcessing, setIsAgentProcessing] = useState(false);
 
   const noteTypes = [
     { label: 'Note', value: 'note' },
@@ -456,6 +458,45 @@ const GameNote: React.FC<GameNoteProps> = ({
     }
   };
 
+  const handleAgentSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (agentInput.trim() === '') {
+      return;
+    }
+
+    setIsAgentProcessing(true);
+
+    const formData = new FormData();
+    formData.append('input', agentInput);
+    formData.append('context_items[]', globalId);
+
+    try {
+      const response = await fetch(`/games/${gameId}/agent`, {
+        method: 'POST',
+        body: formData,
+        headers: {
+          'X-CSRF-Token': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
+          'Accept': 'application/json'
+        },
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        setAgentInput('');
+        alert(data.message || 'Request submitted successfully');
+      } else {
+        alert(`Failed to submit request: ${data.error || 'Unknown error'}`);
+      }
+    } catch (error) {
+      console.error('Error submitting agent request:', error);
+      alert('Failed to submit request');
+    } finally {
+      setIsAgentProcessing(false);
+    }
+  };
+
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
     return date.toLocaleDateString('en-US', {
@@ -582,7 +623,16 @@ const GameNote: React.FC<GameNoteProps> = ({
           ) : null}
 
           <div className="text-sm text-gray-900 prose prose-sm max-w-none">
-            <ReactMarkdown remarkPlugins={[remarkGfm]}>{content}</ReactMarkdown>
+            <ReactMarkdown
+              remarkPlugins={[remarkGfm]}
+              components={{
+                a: ({ node, ...props }) => (
+                  <a {...props} target="_blank" rel="noopener noreferrer" />
+                )
+              }}
+            >
+              {content}
+            </ReactMarkdown>
           </div>
 
           {/* Additional Images Section (excluding first image which is used as profile) */}
@@ -742,6 +792,30 @@ const GameNote: React.FC<GameNoteProps> = ({
               </div>
             </div>
           )}
+
+          {/* Agent Interaction Section */}
+          <div className="mt-4 pt-4 border-t border-gray-200">
+            <div className="text-xs font-medium text-gray-500 uppercase mb-2">Interact with Note</div>
+            <form onSubmit={handleAgentSubmit}>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={agentInput}
+                  onChange={(e) => setAgentInput(e.target.value)}
+                  placeholder="Ask about this note or request an action..."
+                  className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                  disabled={isAgentProcessing}
+                />
+                <button
+                  type="submit"
+                  disabled={isAgentProcessing || agentInput.trim() === ''}
+                  className="bg-blue-500 hover:bg-blue-600 text-white font-medium py-2 px-4 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+                >
+                  {isAgentProcessing ? 'Sending...' : 'Send'}
+                </button>
+              </div>
+            </form>
+          </div>
         </>
       ) : (
         <>

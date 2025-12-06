@@ -118,21 +118,40 @@ class GameAgent < ApplicationRecord
           chat.messages << RubyLLM::Message.new(role: "user", content: msg["content"])
         when "assistant"
           chat.messages << RubyLLM::Message.new(role: "assistant", content: msg["content"])
+        when "tool"
+          # Tool result messages are handled by RubyLLM internally during execution
+          # We include them for display purposes but RubyLLM doesn't need them in the message history
+          # since it re-executes tools on each call
         end
       end
 
       # Determine if we should stream
       stream = block_given?
 
+      # Track tool calls and results to save to conversation history
+      tool_calls_made = []
+      tool_results_received = []
+
       if stream
         # Streaming mode
         yield({ type: "assistant_start" })
 
         chat.on_tool_call do |tool_call|
+          # Save tool call for conversation history
+          tool_calls_made << {
+            id: tool_call.object_id.to_s, # Generate a unique ID
+            type: "function",
+            function: {
+              name: tool_call.name,
+              arguments: tool_call.arguments.to_json
+            }
+          }
           yield({ type: "tool_call", name: tool_call.name, arguments: tool_call.arguments })
         end
 
         chat.on_tool_result do |result|
+          # Save tool result for conversation history
+          tool_results_received << result
           yield({ type: "tool_result", result: result })
         end
 
@@ -141,15 +160,37 @@ class GameAgent < ApplicationRecord
         end
       else
         # Non-streaming mode
+        chat.on_tool_call do |tool_call|
+          tool_calls_made << {
+            id: tool_call.object_id.to_s,
+            type: "function",
+            function: {
+              name: tool_call.name,
+              arguments: tool_call.arguments.to_json
+            }
+          }
+        end
+
+        chat.on_tool_result do |result|
+          tool_results_received << result
+        end
+
         response = chat.ask(input)
       end
 
-      # Add assistant response to history
-      add_message(role: "assistant", content: response.content)
-    rescue => e
-      Rails.logger.error "AI Service error: #{e.class} - #{e.message}"
-      yield({ type: "error", error: e.message }) if block_given?
-      raise e
+      # Add assistant message with tool calls if any were made
+      if tool_calls_made.any?
+        add_message(role: "assistant", content: response.content || "", tool_calls: tool_calls_made)
+
+        # Add tool results as separate messages
+        tool_results_received.each_with_index do |result, index|
+          tool_call_id = tool_calls_made[index][:id] if tool_calls_made[index]
+          add_message(role: "tool", content: result.to_json, tool_call_id: tool_call_id)
+        end
+      else
+        # No tool calls, just add the response
+        add_message(role: "assistant", content: response.content)
+      end
     end
   end
 

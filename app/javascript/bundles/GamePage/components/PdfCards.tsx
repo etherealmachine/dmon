@@ -22,10 +22,10 @@ const PdfCards: React.FC<PdfCardsProps> = ({ pdfs, gameId }) => {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {/* Existing PDF Cards */}
           {pdfs.map((pdf) => (
-            <a
+            <div
               key={pdf.id}
-              href={`/games/${gameId}/pdfs/${pdf.id}`}
-              className="block bg-white rounded-lg shadow hover:shadow-lg transition-shadow p-3 border border-gray-200"
+              className="block bg-white rounded-lg shadow hover:shadow-lg transition-shadow p-3 border border-gray-200 cursor-pointer"
+              onClick={() => window.location.href = `/games/${gameId}/pdfs/${pdf.id}`}
             >
               <div className="flex items-start space-x-2 mb-2">
                 {/* PDF Icon */}
@@ -61,7 +61,7 @@ const PdfCards: React.FC<PdfCardsProps> = ({ pdfs, gameId }) => {
               >
                 View HTML
               </a>
-            </a>
+            </div>
           ))}
 
           {/* Upload New PDF Card */}

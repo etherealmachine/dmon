@@ -7,17 +7,9 @@ module GameAgentTools
     end
 
     params do
-      string :query, description: "Optional search query to filter notes by content", optional: true
-
-    def name
-      "search_game_notes"
-    end
-      enum :note_type, values: GameNote.note_types.map(&:second),
-           description: "Optional filter by note type", optional: true
-
-    def name
-      "search_game_notes"
-    end
+      string :query, description: "Optional search query to filter notes by content", required: false
+      string :note_type, enum: GameNote.note_types.map(&:second),
+             description: "Optional filter by note type", required: false
     end
 
     def initialize(game)

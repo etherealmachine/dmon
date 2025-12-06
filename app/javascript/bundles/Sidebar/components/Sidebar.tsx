@@ -90,10 +90,20 @@ const Sidebar: React.FC<SidebarProps> = ({ gameId, plan: initialPlan, model, con
 
         handleError: (data: any) => {
           console.error('Agent error:', data.error);
+          if (data.backtrace) {
+            console.error('Backtrace:', data.backtrace);
+          }
           setIsProcessing(false);
+
+          // Format error with backtrace if available
+          let errorContent = data.error;
+          if (data.backtrace && Array.isArray(data.backtrace)) {
+            errorContent += '\n\n**Stack trace:**\n```\n' + data.backtrace.join('\n') + '\n```';
+          }
+
           setConversationHistory(prev => [...prev, {
             role: 'error',
-            content: data.error
+            content: errorContent
           }]);
         }
       };

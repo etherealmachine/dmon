@@ -8,15 +8,7 @@ module GameAgentTools
 
     params do
       integer :note_id, description: "The ID of the note containing the action", required: true
-
-    def name
-      "call_note_action"
-    end
       integer :action_index, description: "The index of the action to execute (0-based, so first action is 0, second is 1, etc.)", required: true
-
-    def name
-      "call_note_action"
-    end
     end
 
     def initialize(game)

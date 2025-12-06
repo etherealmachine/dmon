@@ -29,7 +29,10 @@ module GameAgentTools
         },
         "actions" => {
           "type" => "array",
-          "description" => "Optional array of actions that can be executed later (e.g., dice rolls for attacks or abilities)"
+          "description" => "Optional array of actions that can be executed later (e.g., dice rolls for attacks or abilities)",
+          "items" => {
+            "type" => "object"
+          }
         }
       },
       "required" => ["content", "note_type"],

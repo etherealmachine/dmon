@@ -7,7 +7,12 @@ module GameAgentTools
     end
 
     params do
-      array :items, description: "Array of plan items (replaces the current plan)", required: true
+      array :items, description: "Array of plan items (replaces the current plan)", required: true do
+        object do
+          string :description, description: "The plan item description", required: true
+          boolean :completed, description: "Whether the item is completed", required: false
+        end
+      end
     end
 
     def initialize(game_agent)
